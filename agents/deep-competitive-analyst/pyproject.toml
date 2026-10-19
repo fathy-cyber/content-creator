@@ -1,0 +1,21 @@
+[project]
+name = "competitive-analysis-agent"
+version = "0.1.0"
+description = "Competitive Analysis Deep Agent"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "deepagents==0.2.8",
+    "langchain-groq>=0.2.0",
+    "langchain>=1.0.2",
+    "langgraph-cli[inmem]>=0.4.4",
+    "perplexityai==0.17.1",
+    "ratelimit>=2.2.1",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "duckduckgo-search>=7.0.0",
+    "ddgs>=1.0.0",
+    "reportlab>=4.0",
+]

@@ -1,0 +1,2005 @@
+
+
+analyze the current project and make the inventory of Missing Pages and the task plans for building them respectively .
+
+---
+
+## INSTRUCTION
+
+You are continuing the development of the **Ayech AI** web application. The initial build is incomplete — several pages and sub-pages defined in the original specification were **not created**. Your task is to **audit the current codebase against the complete page inventory below**, identify every missing page, and **build each one fully** with all specified components, functionality, and styling.
+
+---
+
+## CRITICAL RULES
+
+1. **Do NOT skip any page.** Every route listed below must exist as a fully functional page.
+2. **Do NOT create placeholder or skeleton pages.** Each page must include all UI components, forms, buttons, result panels, and interactions as described.
+3. **Match the existing design system exactly** — use the same Tailwind classes, shadcn/ui components, color scheme, spacing, and layout patterns already established in the built pages.
+4. **Maintain consistent navigation** — every new page must be accessible from the sidebar menu, and all sidebar sub-menus must be fully wired.
+5. **Ensure all pages are responsive** — desktop, tablet, and mobile layouts as defined in the original specification.
+6. **Connect all pages to the existing routing system** — proper Next.js App Router file structure (or React Router if that was used).
+7. **Wire up API calls** — each page that requires AI generation or data fetching must call the appropriate API endpoint.
+8. **Support all three languages** — Arabic (RTL), French, and English using the existing i18n setup.
+9. **Include all interactive states** — loading, empty, error, and success states for every component.
+
+---
+
+## COMPLETE PAGE INVENTORY
+
+Audit the codebase against this full list. **Build every page that does not yet exist.**
+
+---
+
+### SECTION 1: AUTHENTICATION & ONBOARDING
+
+#### ✅ Page 1.1 — Login (`/login`)
+
+```
+Route:  /login
+Layout: Centered card, no sidebar, no top nav
+```
+
+**Required Components:**
+- App logo centered at top
+- Language selector (top-right corner: 🇹🇳 عربي | 🇫🇷 Français | 🇬🇧 English)
+- Login form card:
+  - Email input field (with validation)
+  - Password input field (with show/hide toggle)
+  - "Remember me" checkbox
+  - `[ 🔑 Login ]` primary button (full-width)
+  - "Forgot password?" text link → opens password reset modal
+- Divider: "— or continue with —"
+- Social login buttons row:
+  - `[ Google ]` button with Google icon
+  - `[ Facebook ]` button with Facebook icon
+- Bottom text: "Don't have an account? [Sign up →]" linking to `/register`
+- Footer: © 2025 Ayech AI
+
+**Functionality:**
+- Form validation (email format, password minimum 8 characters)
+- Error toast on invalid credentials
+- Redirect to `/dashboard` on success (or `/onboarding` if first login)
+- Loading spinner on submit button while authenticating
+
+---
+
+#### ✅ Page 1.2 — Register (`/register`)
+
+```
+Route:  /register
+Layout: Centered card, no sidebar, no top nav
+```
+
+**Required Components:**
+- App logo centered at top
+- Language selector
+- Registration form card:
+  - Full name input
+  - Email input (with validation + "already exists" check)
+  - Phone number input (Tunisian format: +216 XX XXX XXX)
+  - Password input (with strength indicator bar: Weak/Medium/Strong)
+  - Confirm password input
+  - Business type dropdown (optional): Retail, Services, Food & Beverage, Fashion, Beauty, Tech, Education, Other
+  - Checkbox: "I agree to the [Terms of Service] and [Privacy Policy]" (links open modals)
+  - `[ 🚀 Create Account ]` primary button (full-width)
+- Divider: "— or sign up with —"
+- Social signup buttons (Google, Facebook)
+- Bottom text: "Already have an account? [Login →]"
+
+**Functionality:**
+- Real-time validation on all fields
+- Password strength calculation
+- Success → redirect to `/onboarding`
+
+---
+
+#### ✅ Page 1.3 — Onboarding Wizard (`/onboarding`)
+
+```
+Route:  /onboarding
+Layout: Full-screen wizard, no sidebar
+```
+
+**Required Components:**
+
+**Progress bar** at top showing 3 steps
+
+**Step 1 of 3: "Tell us about your business" (`/onboarding?step=1`)**
+- Heading: "Let's personalize your experience 🎯"
+- Form fields:
+  - Business name (text input)
+  - Industry (dropdown with icons: 🍕 Food | 👗 Fashion | 💄 Beauty | 💻 Tech | 📚 Education | 🔧 Services | 🏪 Retail | Other)
+  - Location (dropdown: all 24 Tunisian governorates)
+  - Business stage (radio cards):
+    - 💡 "Just an idea"
+    - 🌱 "Just started (< 6 months)"
+    - 📈 "Growing (6 months - 2 years)"
+    - 🏢 "Established (2+ years)"
+  - Brief description (textarea, optional)
+- `[ Next → ]` button
+
+**Step 2 of 3: "What are your goals?" (`/onboarding?step=2`)**
+- Heading: "What do you want to achieve? 🚀"
+- Multi-select card grid (user can select multiple):
+  - 💰 "Increase sales & revenue"
+  - ⏱️ "Save time with automation"
+  - 📱 "Build online presence"
+  - 📣 "Improve my marketing"
+  - 🤖 "Automate customer support"
+  - ✍️ "Create better content"
+  - 📊 "Understand my market better"
+  - 🔄 "Streamline operations"
+- Selected cards get a highlighted border + checkmark
+- `[ ← Back ]` `[ Next → ]` buttons
+
+**Step 3 of 3: "Your personalized toolkit" (`/onboarding?step=3`)**
+- Heading: "Here's what we recommend for you ✨"
+- Based on previous selections, show 4-6 recommended tool cards:
+  - Each card: tool icon + name + one-line description + `[ Explore → ]` link
+- AI-generated welcome message: "Based on your profile, here are 3 things you should do first..."
+  - 3 numbered action items with links to relevant pages
+- `[ 🎉 Go to Dashboard ]` primary button
+
+**Functionality:**
+- Save all onboarding data to `business_profiles` table
+- Pre-populate dashboard AI suggestions based on selections
+- Allow skipping (small "Skip for now" link) but encourage completion
+- Animate transitions between steps (slide left/right)
+
+---
+
+#### ✅ Page 1.4 — Forgot Password (`/forgot-password`)
+
+```
+Route:  /forgot-password
+Layout: Centered card
+```
+
+**Components:**
+- Email input
+- `[ Send Reset Link ]` button
+- Success state: "Check your email for a reset link"
+- Back to login link
+
+---
+
+#### ✅ Page 1.5 — Reset Password (`/reset-password`)
+
+```
+Route:  /reset-password?token=xxx
+Layout: Centered card
+```
+
+**Components:**
+- New password input with strength indicator
+- Confirm password input
+- `[ Reset Password ]` button
+- Redirect to `/login` on success
+
+---
+
+### SECTION 2: DASHBOARD
+
+#### ✅ Page 2.1 — Main Dashboard (`/dashboard`)
+
+```
+Route:  /dashboard
+Layout: Sidebar + Main content
+```
+
+**Required Components (verify ALL exist):**
+
+**2.1.1 Welcome Header**
+- "Welcome back, [User Name] 👋"
+- Current date (formatted for locale)
+- Daily AI tip card (rotating, fetched from API)
+
+**2.1.2 Quick Stats Cards** (horizontal row, 4 cards)
+
+| Card | Icon | Content |
+|---|---|---|
+| Revenue Tracker | `TrendingUp` | "Est. Revenue: X TND" + percentage badge (+/-) |
+| Time Saved | `Clock` | "X hours saved this month" |
+| Content Created | `FileText` | "X pieces generated" |
+| Active Automations | `Zap` | "X running" with status dot (green) |
+
+Each card: white background (dark mode: slate-800), rounded-xl, shadow-sm, hover:shadow-md transition
+
+**2.1.3 Quick Action Buttons** (2 rows × 3 columns grid)
+
+```
+Row 1: [ 📝 Generate Post ]  [ 💬 AI Chat ]       [ 🤖 New Automation ]
+Row 2: [ 📊 Business Audit ]  [ 📅 Content Plan ]  [ 📦 Product Desc ]
+```
+
+Each button: card style with icon on top, label below, full clickable area, routes to corresponding page
+
+**2.1.4 Recent Activity Feed**
+- Vertical timeline (last 10 items)
+- Each item: colored dot + icon + description + relative timestamp ("2 hours ago")
+- `[ View All Activity → ]` link at bottom
+
+**2.1.5 AI Insights Panel**
+- Card with gradient border (blue → green)
+- "💡 Ayech Recommends" heading
+- 2-3 personalized suggestions based on user behavior
+- Each suggestion: text + `[ Let's Do It → ]` button
+- Refresh icon to get new suggestions
+
+---
+
+### SECTION 3: BUSINESS ADVISORY
+
+#### ✅ Page 3.1 — Business Advisory Landing (`/business`)
+
+```
+Route:  /business
+Layout: Sidebar + Main content
+```
+
+**Components:**
+- Section heading: "📊 Business Advisory"
+- Subheading: "Strategic tools to validate, plan, and grow your business"
+- 5 feature cards in a grid (2 columns desktop, 1 column mobile):
+
+| Card | Route | Icon | Description |
+|---|---|---|---|
+| Idea Validator | `/business/idea-validator` | 💡 | "Test your business idea against the Tunisian market" |
+| Pricing Strategy | `/business/pricing` | 💰 | "Find the perfect price point for your products" |
+| Profit Calculator | `/business/calculator` | 🧮 | "Calculate margins, break-even, and projections" |
+| Business Plan | `/business/plan` | 🏗️ | "Generate a complete business plan with AI" |
+| Market Analysis | `/business/market-analysis` | 🔍 | "Understand your market, competitors, and opportunities" |
+
+Each card: icon + title + description + `[ Open Tool → ]` button + hover animation
+
+---
+
+#### ✅ Page 3.2 — Idea Validator (`/business/idea-validator`)
+
+```
+Route:  /business/idea-validator
+```
+
+**Left/Top Section — Input Form:**
+- Page title: "💡 Business Idea Validator"
+- Description: "Describe your idea and we'll analyze its viability in the Tunisian market"
+- Form fields:
+  - Business idea description (textarea, 3-5 rows, placeholder: "Describe your business idea in detail...")
+  - Industry sector (dropdown: Food & Beverage, Fashion & Clothing, Beauty & Cosmetics, Technology, Education & Training, Professional Services, Retail & E-commerce, Health & Wellness, Agriculture, Tourism, Other)
+  - Target audience (text input, placeholder: "e.g., Women 25-40 in Tunis interested in skincare")
+  - Starting budget (number input with TND label + slider below: range 500 - 50,000 TND, step 500)
+  - Location (dropdown: all 24 governorates + "Online / All Tunisia")
+  - Current stage (radio group: "Just an idea" | "Some research done" | "Already started small")
+- `[ 🔍 Validate My Idea ]` primary button (full width)
+- `[ 🗑️ Clear Form ]` secondary button
+
+**Right/Bottom Section — Results Panel** (hidden until submission, slide-in animation):
+
+- **Viability Score**: Large circular progress ring (0-100)
+  - 0-30: Red "High Risk"
+  - 31-60: Amber "Moderate Potential"
+  - 61-80: Green "Promising"
+  - 81-100: Emerald "Excellent"
+
+- **Analysis Sections** (accordion or tabs):
+  1. ✅ **Strengths** — bullet list with green checkmark icons
+  2. ⚠️ **Risks & Challenges** — bullet list with amber warning icons
+  3. 👥 **Target Market Insights** — audience size estimate, behavior notes
+  4. 🏪 **Competitor Landscape** — known competitors, differentiation opportunities
+  5. 💰 **Revenue Potential** — estimated monthly revenue range (TND)
+  6. 📋 **Recommended Next Steps** — numbered action list (1-5 steps)
+
+- **Action Buttons Row:**
+  - `[ 📄 Export as PDF ]`
+  - `[ 🔄 Refine & Re-analyze ]`
+  - `[ 🏗️ Generate Business Plan → ]` (links to `/business/plan` with pre-filled data)
+  - `[ 💬 Discuss with Ayech ]` (opens chat with context)
+
+---
+
+#### ✅ Page 3.3 — Pricing Strategy (`/business/pricing`)
+
+```
+Route:  /business/pricing
+```
+
+**Form Section:**
+- Page title: "💰 Pricing Strategy Generator"
+- Fields:
+  - Product/service name (text input)
+  - Category (dropdown matching industry list)
+  - Production/acquisition cost per unit (number input, TND)
+  - Target profit margin (slider: 10% to 300%, with percentage display)
+  - Competitor price range — two inputs: Minimum (TND) | Maximum (TND)
+  - Sales channels (checkbox group with icons):
+    - ☐ Facebook
+    - ☐ Instagram
+    - ☐ WhatsApp
+    - ☐ Physical Store
+    - ☐ Website
+    - ☐ Marketplace (Jumia, etc.)
+  - Pricing psychology preference (radio): "Premium positioning" | "Competitive pricing" | "Budget-friendly" | "Let AI decide"
+- `[ 💰 Generate Pricing Strategy ]` button
+
+**Results Section:**
+
+- **Recommended Price** — Large highlighted card: "XX.XXX TND" in large bold text
+- **Pricing Tiers Table:**
+
+| Tier | Price (TND) | What's Included | Best For |
+|---|---|---|---|
+| Basic | XX TND | ... | Price-sensitive buyers |
+| Standard | XX TND | ... | Most customers |
+| Premium | XX TND | ... | Quality-focused buyers |
+
+- **Psychological Pricing Tips** — 3-4 bullet points
+- **Bundle & Upsell Recommendations** — suggestions with example pricing
+- **Seasonal Adjustments** — Tunisian calendar considerations (Ramadan, summer, back-to-school)
+- **Channel-Specific Pricing Notes** — different strategies per channel
+
+- Buttons: `[ 📋 Copy Strategy ]` `[ 📄 Export PDF ]` `[ 🔄 Recalculate ]`
+
+---
+
+#### ✅ Page 3.4 — Profit Calculator (`/business/calculator`)
+
+```
+Route:  /business/calculator
+```
+
+**Interactive Calculator (real-time updates):**
+
+**Input Panel (left on desktop, top on mobile):**
+- Cost price per unit (TND) — number input
+- Selling price per unit (TND) — number input
+- Estimated units sold per month — number input
+- Fixed monthly costs (TND) — number input (rent, subscriptions, etc.)
+- Variable cost per unit (TND) — number input (packaging, shipping)
+- Tax rate (%) — number input (default: 19% TVA)
+
+**Live Results Panel (right on desktop, bottom on mobile):**
+Updates instantly as user types:
+
+| Metric | Value | Visual |
+|---|---|---|
+| Gross Profit per Unit | XX TND | — |
+| Gross Margin | XX% | Progress bar |
+| Monthly Gross Revenue | XX TND | — |
+| Monthly Net Profit | XX TND | Highlighted (green if positive, red if negative) |
+| Net Margin | XX% | Progress bar |
+| Break-Even Point | XX units | — |
+| Break-Even Revenue | XX TND | — |
+
+**Chart Section:**
+- Bar chart: Revenue vs. Costs vs. Profit (monthly)
+- `[ 📊 Generate 12-Month Forecast ]` button → shows line chart with projected growth
+  - Growth rate input slider (0% - 50% monthly growth)
+  - Chart shows: optimistic / realistic / pessimistic scenarios
+
+**Export:** `[ 📄 Export Report ]` `[ 📊 Download Charts ]`
+
+---
+
+#### ✅ Page 3.5 — Business Plan Generator (`/business/plan`)
+
+```
+Route:  /business/plan
+```
+
+**Multi-step stepper wizard:**
+
+Progress indicator at top: `[1]——[2]——[3]——[4]——[5]——[6]`
+
+**Step 1: Business Overview**
+- Business name
+- Mission statement (textarea)
+- Products/services description
+- Legal structure (dropdown: Auto-entrepreneur, SARL, SUARL, SA, Other)
+- Location
+- `[ Next → ]`
+
+**Step 2: Market Analysis**
+- Target market description
+- Market size estimate
+- Customer persona description
+- AI button: `[ 🤖 Auto-Generate Market Analysis ]` → fills fields
+- `[ ← Back ]` `[ Next → ]`
+
+**Step 3: Revenue Model**
+- Revenue streams (multi-select + custom input)
+- Pricing model (dropdown: One-time, Subscription, Freemium, Commission, etc.)
+- Average transaction value (TND)
+- Projected monthly transactions
+- `[ ← Back ]` `[ Next → ]`
+
+**Step 4: Marketing Strategy**
+- Marketing channels (checkboxes)
+- Monthly marketing budget (TND)
+- Key messaging / unique selling proposition
+- AI button: `[ 🤖 Auto-Generate Marketing Strategy ]`
+- `[ ← Back ]` `[ Next → ]`
+
+**Step 5: Operations**
+- Team size and roles
+- Key tools and technology
+- Suppliers / partners
+- Daily operations workflow
+- `[ ← Back ]` `[ Next → ]`
+
+**Step 6: Financial Projections**
+- Startup costs breakdown (dynamic add/remove rows)
+- Monthly operating costs
+- Revenue projections (Month 1, 3, 6, 12)
+- AI button: `[ 🤖 Auto-Generate Financial Projections ]`
+- `[ ← Back ]` `[ ✅ Generate Business Plan ]`
+
+**Final Output Page:**
+- Complete rendered business plan document (styled, professional)
+- Table of contents with anchor links
+- Each section editable inline (click to edit)
+- Action buttons:
+  - `[ 📥 Download as PDF ]`
+  - `[ 📥 Download as Word ]`
+  - `[ 📧 Email to Me ]`
+  - `[ ✏️ Edit Plan ]`
+  - `[ 💬 Review with Ayech ]`
+
+---
+
+#### ✅ Page 3.6 — Market Analysis (`/business/market-analysis`)
+
+```
+Route:  /business/market-analysis
+```
+
+**Input Form:**
+- Industry / sector (dropdown)
+- Specific niche (text input)
+- Target location (dropdown: governorates + "All Tunisia")
+- Target demographic (text input)
+- Known competitors (textarea, comma-separated)
+- `[ 🔍 Analyze Market ]` button
+
+**Output Report:**
+- **Market Overview** — size estimation, growth trends
+- **Consumer Behavior** — buying habits, preferences, pain points
+- **Competitive Landscape** — competitor table with strengths/weaknesses
+- **Opportunities** — underserved niches, gaps in market
+- **Threats** — risks, barriers to entry
+- **SWOT Analysis** — 2x2 grid (Strengths, Weaknesses, Opportunities, Threats)
+- **Recommendations** — prioritized action list
+
+Export: `[ 📄 Download Report ]` `[ 📋 Copy ]`
+
+---
+
+### SECTION 4: MARKETING & SALES
+
+#### ✅ Page 4.0 — Marketing Landing (`/marketing`)
+
+```
+Route:  /marketing
+```
+
+Feature cards grid linking to all 7 sub-tools (same pattern as `/business` landing):
+- Post Generator, Ad Copy Creator, Product Description Writer, WhatsApp Templates, Campaign Planner, Sales Scripts, Conversion Optimizer
+
+---
+
+#### ✅ Page 4.1 — Post Generator (`/marketing/post-generator`)
+
+```
+Route:  /marketing/post-generator
+```
+
+**Form Panel:**
+- Platform toggle buttons (with platform icons + colors):
+  - `[ 📘 Facebook ]` `[ 📸 Instagram ]` `[ 🎵 TikTok ]`
+- Post type (radio cards in a grid):
+  - 🛍️ Product Promotion
+  - 💬 Engagement / Question
+  - 📚 Educational / Tips
+  - ⭐ Testimonial / Social Proof
+  - 🏷️ Offer / Discount
+  - 📖 Story / Behind the Scenes
+- Product/service name (text input)
+- Key selling points (textarea, placeholder: "What makes this special?")
+- Tone selector (pill toggles): `Professional` | `Casual` | `Funny` | `Urgent`
+- Language (pill toggles): `🇹🇳 Derja` | `🇫🇷 Français` | `🇬🇧 English`
+- Toggle switches row:
+  - Include emoji ✅
+  - Include hashtags ✅
+  - Include CTA ✅ → if on, show CTA type dropdown (Shop Now, Send Message, Learn More, Call Now, Visit Link)
+- `[ ✨ Generate Post ]` primary button
+
+**Result Panel:**
+- Generated post in a **platform-styled mockup card**:
+  - Facebook: mimics Facebook post card
+  - Instagram: mimics Instagram caption area
+  - TikTok: mimics TikTok description
+- Below the mockup:
+  - `[ 📋 Copy Text ]` `[ 🔄 Regenerate ]` `[ ✏️ Edit ]` buttons
+  - `[ Generate 3 Variations ]` secondary button → shows 3 tabs with different versions
+- **Suggested Posting Time** card: "Best time to post for Tunisian audience: [Day] at [Time]"
+- **Hashtag Suggestions** card: clickable hashtag chips, `[ 📋 Copy All ]`
+
+---
+
+#### ✅ Page 4.2 — Ad Copy Creator (`/marketing/ad-copy`)
+
+```
+Route:  /marketing/ad-copy
+```
+
+**Form:**
+- Platform (radio): Facebook Ads | Instagram Ads
+- Campaign objective (dropdown): Awareness | Traffic | Engagement | Conversions | Messages
+- Product/service details (textarea)
+- Target audience description (textarea)
+- Budget range (two inputs: min - max TND)
+- Language preference
+- Special offer / promotion details (optional textarea)
+- `[ 📢 Generate Ad Copy ]` button
+
+**Result Panel (tabbed):**
+
+**Tab 1: Ad Copy Variations**
+Table or cards showing 3 variations:
+
+| Element | Variation 1 | Variation 2 | Variation 3 |
+|---|---|---|---|
+| Primary Text | ... | ... | ... |
+| Headline | ... | ... | ... |
+| Description | ... | ... | ... |
+| CTA Button | ... | ... | ... |
+
+Each cell has a `[ 📋 ]` copy button
+
+**Tab 2: Targeting Suggestions**
+- Recommended audience parameters
+- Interest targeting suggestions
+- Age range recommendation
+- Location targeting
+
+**Tab 3: Budget & Strategy**
+- Budget allocation recommendation
+- A/B testing plan
+- Expected performance estimates
+- Optimization tips
+
+---
+
+#### ✅ Page 4.3 — Product Description Writer (`/marketing/product-description`)
+
+```
+Route:  /marketing/product-description
+```
+
+**Form:**
+- Product name (text input)
+- Product category (dropdown)
+- Key features (textarea or dynamic tag input — add features one by one)
+- Price (TND)
+- Target buyer description (text input)
+- Platform destination (radio cards): Facebook Post | Instagram Caption | Website Listing | WhatsApp Catalog
+- Language (toggle)
+- Photo upload (optional — drag & drop zone with preview)
+- `[ 📦 Generate Description ]` button
+
+**Result Panel:**
+- 3 variations displayed as cards:
+  - **Short** (2-3 lines — for WhatsApp / quick posts)
+  - **Medium** (paragraph — for Facebook / Instagram)
+  - **Detailed** (multiple paragraphs — for website)
+- Each card: styled text + `[ 📋 Copy ]` + `[ ✏️ Edit ]`
+- **SEO Keywords** section (if website selected): keyword chips
+- **Proactive Suggestions** card:
+  - 📸 Photo tips for this product type
+  - 💰 Price display best practices
+  - #️⃣ Hashtag strategy
+
+---
+
+#### ✅ Page 4.4 — WhatsApp Templates (`/marketing/whatsapp-templates`)
+
+```
+Route:  /marketing/whatsapp-templates
+```
+
+**Category Tabs** (horizontal scrollable on mobile):
+```
+[ 👋 Welcome ] [ ❓ Product Inquiry ] [ 💰 Price Quote ] [ 🔄 Follow-Up ]
+[ 🛡️ Objection ] [ ✅ Order Confirm ] [ 🚚 Delivery ] [ 💤 Re-engagement ]
+```
+
+**Each Tab Content:**
+- 3-5 template cards, each styled as a **WhatsApp chat bubble** (green background, rounded, timestamp)
+- Each template card:
+  - Template text with dynamic placeholders highlighted: `[Customer Name]`, `[Product]`, `[Price]`
+  - `[ 📋 Copy ]` button
+  - `[ ✏️ Customize ]` button → opens modal with editable fields for placeholders
+- Language toggle at top of tab content (Derja | French | English)
+
+**Bottom Section:**
+- "Need a custom template?" form:
+  - Scenario description (textarea)
+  - Tone (dropdown)
+  - Language (toggle)
+  - `[ 🤖 Generate Custom Template ]` button
+  - Result appears as a new WhatsApp bubble card
+
+---
+
+#### ✅ Page 4.5 — Campaign Planner (`/marketing/campaign-planner`)
+
+```
+Route:  /marketing/campaign-planner
+```
+
+**Wizard Interface (4 steps):**
+
+**Step 1: Campaign Goal**
+- Goal (radio cards): 💰 Drive Sales | 👥 Generate Leads | 📢 Build Awareness | 🎉 Promote Event | 🆕 Product Launch
+- Campaign name (text input)
+
+**Step 2: Budget & Duration**
+- Total budget (TND number input)
+- Date range (date range picker — start and end)
+- Daily vs. total budget toggle
+
+**Step 3: Channels**
+- Channel selection (checkbox cards with budget % allocation slider for each):
+  - Facebook (organic + paid)
+  - Instagram (organic + paid)
+  - WhatsApp
+  - TikTok
+  - Email
+  - SMS
+
+**Step 4: Generate**
+- `[ 🎯 Generate Campaign Plan ]` button
+
+**Output — Campaign Dashboard:**
+
+- **Campaign Overview Card**: name, goal, budget, duration, channels
+- **Calendar View** (week by week):
+  - Each day: action items color-coded by channel
+  - Click any day → detail panel with exact content/action
+- **Content Suggestions**: for each day, AI-generated post/ad/message
+- **Budget Breakdown**: pie chart by channel + daily spend line chart
+- **KPI Targets**: expected reach, clicks, conversions, cost per result
+- **Export**: `[ 📥 Download Plan ]` `[ 📅 Add to Content Calendar ]`
+
+---
+
+#### ✅ Page 4.6 — Sales Scripts (`/marketing/sales-scripts`)
+
+```
+Route:  /marketing/sales-scripts
+```
+
+**Scenario Selector** (card grid, 2 columns):
+
+| Card | Icon | Description |
+|---|---|---|
+| Cold Outreach | 📨 | "First contact via DM or message" |
+| Inquiry Response | 💬 | "Reply to someone asking about your product" |
+| Price Objection | 💰 | "Handle 'too expensive' responses" |
+| Closing the Sale | 🤝 | "Guide the conversation to purchase" |
+| Upselling | 📈 | "Suggest upgrades or additional products" |
+| Win-Back | 🔄 | "Re-engage a lost or inactive customer" |
+
+**Click any card → Script Generator Form:**
+- Product/service (text input)
+- Customer type (dropdown: New, Returning, Hesitant, Price-sensitive)
+- Channel (WhatsApp, Messenger, Instagram DM, Phone)
+- Language
+- `[ 📝 Generate Script ]` button
+
+**Script Output:**
+- Conversational flowchart style:
+  ```
+  YOU: "Opening message..."
+    ↓
+  IF customer says [positive response]:
+    YOU: "Follow-up..."
+  IF customer says [objection]:
+    YOU: "Objection handler..."
+    ↓
+  CLOSE: "Closing message..."
+  ```
+- Each message block: `[ 📋 Copy ]`
+- `[ 🔄 Generate Alternative ]` button
+- Tips sidebar: "💡 Pro tips for this scenario"
+
+---
+
+#### ✅ Page 4.7 — Conversion Optimizer (`/marketing/conversion`)
+
+```
+Route:  /marketing/conversion
+```
+
+**Input Section:**
+- What to optimize (radio): Sales Post | Product Page | Sales Funnel | DM Conversation Flow
+- Current content (large textarea: paste existing text/copy)
+- Current conversion rate if known (number input, %)
+- Target audience (text input)
+- `[ 🔍 Analyze & Optimize ]` button
+
+**Output Section:**
+
+- **Score Card**: Current effectiveness score (0-100) with gauge visual
+- **Issues Found** (numbered list with ❌ icons):
+  - Each issue: problem description + why it matters
+- **Optimized Version**:
+  - Side-by-side comparison: Before | After
+  - Changes highlighted (diff-style)
+- **Improvement Recommendations** (checklist):
+  - ☐ CTA improvements
+  - ☐ Headline rewrites
+  - ☐ Trust signal additions
+  - ☐ Urgency elements
+  - ☐ Social proof integration
+- **Estimated Impact**: "These changes could improve conversions by X-Y%"
+- Buttons: `[ 📋 Copy Optimized Version ]` `[ 📄 Export Report ]`
+
+---
+
+### SECTION 5: AUTOMATION HUB
+
+#### ✅ Page 5.0 — Automation Landing (`/automation`)
+
+```
+Route:  /automation
+```
+
+Feature cards grid linking to: Workflow Builder, Template Library, Integrations, Automation Dashboard, Learning Center
+
+**Hero stat cards row:**
+- Total automations created
+- Total runs this month
+- Total time saved
+- Success rate %
+
+---
+
+#### ✅ Page 5.1 — Workflow Builder (`/automation/builder`)
+
+```
+Route:  /automation/builder
+```
+
+**Three-panel layout:**
+
+**Left Panel — Trigger Library (scrollable):**
+Category headers with draggable items:
+
+```
+📥 TRIGGERS
+  ├── 📩 New Facebook Message
+  ├── 📸 New Instagram DM
+  ├── 🛒 New Order Received
+  ├── 📝 Form Submission
+  ├── ⏰ Scheduled (Cron)
+  ├── 📞 Missed Call
+  ├── 📧 New Email
+  └── 🔗 Webhook
+
+⚡ ACTIONS
+  ├── 💬 Send WhatsApp Message
+  ├── 📧 Send Email
+  ├── 📊 Add Row to Google Sheet
+  ├── 🏷️ Update CRM Record
+  ├── 📱 Send SMS
+  ├── 🔔 Push Notification
+  ├── 🤖 AI Generate Response
+  └── 📝 Create Task
+
+🔀 LOGIC
+  ├── ❓ If/Else Condition
+  ├── ⏱️ Wait / Delay
+  ├── 🔄 Loop
+  └── 🛑 Stop
+```
+
+**Center Panel — Canvas:**
+- Zoomable, pannable workspace
+- Nodes connected by lines/arrows
+- Click node → configuration panel on right
+- Drag from left panel to canvas to add
+- Connect nodes by dragging from output port to input port
+- Delete node: select + delete key or X button
+
+**Right Panel — Node Configuration** (appears when a node is selected):
+- Node title (editable)
+- Configuration form specific to node type:
+  - WhatsApp: recipient field, message template editor
+  - Email: to, subject, body (rich text)
+  - Google Sheet: sheet URL, column mapping
+  - If/Else: condition builder (field + operator + value)
+  - Wait: duration input (minutes/hours/days)
+  - AI Response: prompt template editor
+- `[ 💾 Save Node ]` button
+
+**Bottom Toolbar:**
+- Workflow name (editable text)
+- `[ 💾 Save Draft ]` `[ ▶️ Test Run ]` `[ 🟢 Activate ]` `[ 📤 Export to n8n ]` buttons
+- Plain-language summary: "When [trigger], then [action], then [action]..."
+- Estimated time saved badge: "⏱️ ~X hours saved per week"
+
+**n8n Export Modal:**
+- Generated n8n-compatible JSON (syntax-highlighted code block)
+- `[ 📋 Copy JSON ]` button
+- Step-by-step import instructions (numbered list with screenshots described)
+- Link to n8n documentation
+
+---
+
+#### ✅ Page 5.2 — Template Library (`/automation/templates`)
+
+```
+Route:  /automation/templates
+```
+
+**Filter Bar:**
+- Search input with icon
+- Category dropdown: All | Sales | Support | Marketing | Operations | Finance
+- Difficulty pills: `All` | `Beginner` | `Intermediate` | `Advanced`
+- Platform pills: `All` | `WhatsApp` | `Facebook` | `Instagram` | `Email` | `Google Sheets`
+
+**Template Grid** (3 columns desktop, 2 tablet, 1 mobile):
+
+Each template card:
+```
+┌────────────────────────────────┐
+│  🤖  [Icon]                    │
+│                                │
+│  Template Name                 │
+│  Brief description text        │
+│                                │
+│  [🟢 Beginner]  [⏱️ 15 min]   │
+│                                │
+│  Tools: [WhatsApp] [Sheets]    │
+│                                │
+│  [ 👁️ Preview ] [ 🚀 Use ]    │
+└────────────────────────────────┘
+```
+
+**10 Required Templates** (all must be built):
+
+1. **WhatsApp Auto-Reply Bot** — Beginner — WhatsApp
+2. **Facebook Lead → Google Sheet** — Beginner — Facebook, Sheets
+3. **Order Confirmation Flow** — Beginner — WhatsApp
+4. **Abandoned Cart Follow-Up** — Intermediate — WhatsApp, Sheets
+5. **Daily Sales Report** — Intermediate — Sheets, Email
+6. **Review Request Automation** — Beginner — WhatsApp
+7. **Inventory Alert System** — Intermediate — Sheets, WhatsApp
+8. **Appointment Scheduler** — Intermediate — WhatsApp, Calendar
+9. **Social Media Auto-Poster** — Advanced — Facebook, Instagram
+10. **Customer Birthday Messages** — Beginner — WhatsApp, Sheets
+
+**Template Detail Modal** (opens on "Preview"):
+- Full description
+- Visual workflow diagram (static image or rendered nodes)
+- Tools required list
+- Step-by-step setup guide
+- Expected results / time saved
+- `[ 🚀 Use This Template ]` button → opens in Workflow Builder with pre-filled nodes
+
+---
+
+#### ✅ Page 5.3 — Integrations (`/automation/integrations`)
+
+```
+Route:  /automation/integrations
+```
+
+**Grid of integration cards** (3 columns):
+
+Each card:
+```
+┌──────────────────────┐
+│     [App Logo]       │
+│     App Name         │
+│                      │
+│  Status: ✅ Connected │
+│  or:     ⚪ Not Connected│
+│                      │
+│  [ 🔗 Connect ]     │
+│  or [ ⚙️ Manage ]   │
+└──────────────────────┘
+```
+
+**Required Integrations:**
+
+| App | Logo/Icon | Category |
+|---|---|---|
+| WhatsApp Business | 💬 | Messaging |
+| Facebook Pages | 📘 | Social |
+| Facebook Messenger | 💬 | Messaging |
+| Instagram Business | 📸 | Social |
+| Google Sheets | 📊 | Data |
+| Google Calendar | 📅 | Scheduling |
+| Gmail | 📧 | Email |
+| n8n | ⚡ | Automation |
+| Flouci | 💳 | Payment (Tunisia) |
+| D17 | 💳 | Payment (Tunisia) |
+| Shopify | 🛒 | E-commerce |
+| WooCommerce | 🛒 | E-commerce |
+| Notion | 📝 | Productivity |
+| Telegram | ✈️ | Messaging |
+| Supabase | 🗄️ | Database |
+
+**Connect Flow** (modal on click):
+1. Instructions text
+2. API key / OAuth flow
+3. Test connection button
+4. Success / error state
+
+---
+
+#### ✅ Page 5.4 — Automation Dashboard (`/automation/dashboard`)
+
+```
+Route:  /automation/dashboard
+```
+
+**Stats Row:**
+- Total automations | Active | Paused | Failed (4 stat cards)
+
+**Automations Table:**
+
+| Column | Content |
+|---|---|
+| Name | Automation name (clickable → edit) |
+| Trigger | Trigger type icon + label |
+| Status | Toggle switch (Active/Paused) + status badge |
+| Last Run | Relative timestamp |
+| Total Runs | Number |
+| Success Rate | Percentage with color |
+| Actions | `[ ✏️ ]` `[ ▶️ ]` `[ 🗑️ ]` icon buttons |
+
+**Run History Panel** (expandable below each automation or separate tab):
+- Table: Date/Time | Trigger Event | Duration | Status (✅/❌) | Error Log (if failed)
+
+**Charts:**
+- Line chart: automation runs over time (last 30 days)
+- Bar chart: time saved per automation
+
+---
+
+#### ✅ Page 5.5 — Learning Center (`/automation/learn`)
+
+```
+Route:  /automation/learn
+```
+
+**Learning Paths** (horizontal cards):
+- 🟢 Beginner: "Your First Automation" (3 lessons)
+- 🟡 Intermediate: "Advanced Workflows" (5 lessons)
+- 🔴 Advanced: "Custom API Integrations" (4 lessons)
+
+**Tutorial Grid:**
+Each tutorial card: thumbnail + title + difficulty badge + estimated time + `[ Start → ]`
+
+**Tutorial Page Layout** (`/automation/learn/[slug]`):
+- Step-by-step instructions with numbered steps
+- Code blocks (syntax-highlighted) for JSON/API examples
+- Screenshot placeholders (described in alt text)
+- "Try it yourself" interactive sections
+- `[ ✅ Mark Complete ]` button
+- `[ → Next Lesson ]` navigation
+- `[ 💬 Ask Ayech ]` floating button for help
+
+---
+
+### SECTION 6: CONTENT STUDIO
+
+#### ✅ Page 6.0 — Content Studio Landing (`/content`)
+
+```
+Route:  /content
+```
+
+Feature cards: Content Calendar, Blog Writer, Video Script Generator, Email Campaign Builder, Caption Generator
+
+---
+
+#### ✅ Page 6.1 — Content Calendar (`/content/calendar`)
+
+```
+Route:  /content/calendar
+```
+
+**Toolbar:**
+- View toggle: `[ Month ]` `[ Week ]` `[ Day ]` `[ List ]`
+- Navigation: `[ ← ]` `[Current Month/Week]` `[ → ]`
+- Filter by platform: checkbox chips (All, Facebook, Instagram, WhatsApp, TikTok)
+- `[ + Add Post ]` button → opens creation modal
+- `[ 🤖 Auto-Generate Week ]` prominent button
+
+**Calendar Grid:**
+- Monthly view: grid of day cells
+- Each cell shows event dots (color-coded by platform):
+  - 🔵 Facebook
+  - 🟣 Instagram
+  - 🟢 WhatsApp
+  - ⚫ TikTok
+- Click day → expands to show post cards for that day
+- Drag posts between days to reschedule
+
+**Post Card** (within day):
+- Platform icon + content preview (truncated) + status badge (Draft | Scheduled | Published)
+- Click → edit modal
+
+**Add/Edit Post Modal:**
+- Date & time picker
+- Platform selector
+- Content textarea (or link to Post Generator)
+- Status dropdown: Draft | Scheduled | Published
+- Media upload (optional)
+- `[ 💾 Save ]` `[ 🗑️ Delete ]` buttons
+
+**Auto-Generate Week Feature:**
+- Modal with:
+  - Business context reminder (from profile)
+  - Goals for the week (textarea)
+  - Any promotions this week? (textarea)
+  - Posting frequency per platform (number inputs)
+  - `[ 🤖 Generate Content Plan ]` button
+- Result: populated calendar with AI-generated posts
+- Review each post before confirming
+- `[ ✅ Approve All ]` or edit individually
+
+---
+
+#### ✅ Page 6.2 — Blog Writer (`/content/blog`)
+
+```
+Route:  /content/blog
+```
+
+**Multi-step creation interface:**
+
+**Step 1: Topic & Settings**
+- Blog topic (text input)
+- Target keywords (tag input — add multiple)
+- Tone (dropdown: Professional, Conversational, Educational, Persuasive)
+- Language (toggle)
+- Target word count (slider: 500 - 3000 words)
+- `[ 📝 Generate Outline ]` button
+
+**Step 2: Outline Review**
+- AI-generated outline with sections (H2, H3 headers)
+- Drag to reorder sections
+- Add/remove/rename sections
+- `[ ✅ Approve Outline ]` button
+
+**Step 3: Full Article Generation**
+- AI generates each section sequentially
+- Progress indicator: "Generating section 3 of 7..."
+- Each section appears and is immediately editable (inline rich text editor)
+- `[ 🔄 Regenerate Section ]` button per section
+
+**Step 4: Review & Export**
+- Full article rendered with formatting
+- **Sidebar metrics:**
+  - Word count: XXX
+  - Reading time: X min
+  - SEO Score: XX/100 (with breakdown)
+  - Readability Score: XX/100
+- Export buttons:
+  - `[ 📥 Download PDF ]`
+  - `[ 📋 Copy HTML ]`
+  - `[ 📋 Copy Plain Text ]`
+  - `[ 📋 Copy Markdown ]`
+- `[ ✏️ Continue Editing ]` button
+
+---
+
+#### ✅ Page 6.3 — Video Script Generator (`/content/video-script`)
+
+```
+Route:  /content/video-script
+```
+
+**Form:**
+- Video type (radio cards with icons):
+  - 📱 Instagram Reel
+  - 🎵 TikTok
+  - ▶️ YouTube Short
+  - 📖 Instagram/Facebook Story
+- Topic / product to feature (textarea)
+- Duration target (pill selector): `15s` | `30s` | `60s` | `90s`
+- Tone (dropdown): Fun | Professional | Educational | Dramatic | Storytelling
+- Language (toggle)
+- Include on-screen text? (toggle)
+- `[ 🎬 Generate Script ]` button
+
+**Result Panel:**
+
+**Script Card** (styled like a screenplay):
+```
+🎬 VIDEO SCRIPT
+Duration: 30 seconds
+Platform: Instagram Reel
+
+━━━━━━━━━━━━━━━━━━━━
+🪝 HOOK (0-3 seconds)
+"Opening line that grabs attention..."
+[On-screen text: "..."]
+
+📖 BODY (3-25 seconds)
+"Main content narration..."
+[Action: Show product close-up]
+[On-screen text: "..."]
+
+📢 CTA (25-30 seconds)
+"Call to action..."
+[On-screen text: "Shop now! Link in bio"]
+━━━━━━━━━━━━━━━━━━━━
+```
+
+**Additional Sections:**
+- 🎵 **Music/Sound Suggestions**: 3 recommendations with mood description
+- 📸 **Filming Tips**: 3-4 practical tips for this video type
+- 🖼️ **Thumbnail/Cover Suggestion**: text overlay idea + visual description
+- #️⃣ **Hashtags**: relevant hashtag chips
+
+**Buttons:** `[ 📋 Copy Script ]` `[ 🔄 Regenerate ]` `[ 📄 Export ]`
+
+---
+
+#### ✅ Page 6.4 — Email Campaign Builder (`/content/email`)
+
+```
+Route:  /content/email
+```
+
+**Form:**
+- Campaign type (radio cards):
+  - 👋 Welcome Series
+  - 🏷️ Promotion / Sale
+  - 📰 Newsletter
+  - 💤 Re-engagement
+  - 📢 Announcement
+  - 🎉 Event Invitation
+- Business context (auto-filled from profile, editable)
+- Key message / offer details (textarea)
+- Tone (dropdown)
+- Language (toggle)
+- Number of emails in sequence (for series: slider 1-5)
+- `[ 📧 Generate Email ]` button
+
+**Result Panel:**
+- **Subject Lines** (3 options, each with `[ 📋 Copy ]`):
+  - Option A: "..."
+  - Option B: "..."
+  - Option C: "..."
+
+- **Email Body** (rendered in an email-style preview card):
+  - Header area
+  - Body text (formatted)
+  - CTA button (styled)
+  - Footer
+
+- **Send Time Recommendation**: "Best time for Tunisian audience: [Day] at [Time]"
+
+- **For email sequences**: tabbed view (Email 1, Email 2, Email 3...) with send timing between each
+
+- Buttons: `[ 📋 Copy HTML ]` `[ 📋 Copy Text ]` `[ 📄 Export ]`
+
+---
+
+#### ✅ Page 6.5 — Caption Generator (`/content/captions`)
+
+```
+Route:  /content/captions
+```
+
+**Quick-access tool — minimal form, fast results:**
+
+**Input:**
+- What is this caption for? (text input: product name, event, etc.)
+- Platform (toggle): Facebook | Instagram | TikTok
+- Vibe/tone (emoji selector): 🔥 Hype | 😊 Friendly | 💼 Professional | 😂 Funny | 🎯 Direct
+- Language (toggle)
+- `[ ✨ Generate Captions ]` button
+
+**Output:**
+- **5 caption variations** displayed as cards:
+  - Each card: caption text + character count + `[ 📋 Copy ]`
+  - Platform-specific formatting note (e.g., "Instagram: 2200 char limit")
+- **Hashtag Block**: 15-30 relevant hashtags in a copyable block
+- **Engagement Prompt**: Suggested question to add for comments engagement
+- `[ 🔄 Generate More ]` button for 5 new variations
+
+---
+
+### SECTION 7: CUSTOMER SUPPORT TOOLS
+
+#### ✅ Page 7.0 — Support Landing (`/support`)
+
+Feature cards linking to all 5 sub-tools
+
+---
+
+#### ✅ Page 7.1 — Reply Generator (`/support/reply-generator`)
+
+```
+Route:  /support/reply-generator
+```
+
+**Split-screen layout (side-by-side on desktop, stacked on mobile):**
+
+**Left Panel — Customer Message:**
+- Heading: "📩 Customer's Message"
+- Large textarea (paste or type the customer's message)
+- Language auto-detect indicator
+- Channel context (dropdown): WhatsApp | Messenger | Instagram DM | Email | Comment
+
+**Right Panel — Generated Replies:**
+- Heading: "💬 Suggested Replies"
+- Tone selector at top: `[ Professional ]` `[ Friendly ]` `[ Concise ]`
+- 3 reply cards (one per tone or 3 variations of selected tone):
+  - Each card: reply text in chat bubble style
+  - `[ 📋 Copy ]` `[ ✏️ Edit ]` buttons
+  - Character count
+- `[ 🔄 Regenerate ]` button
+- `[ 🤖 Custom Tone ]` → text input for custom tone description
+
+---
+
+#### ✅ Page 7.2 — Objection Handler (`/support/objections`)
+
+```
+Route:  /support/objections
+```
+
+**Common Objection Cards Grid** (3 columns, clickable):
+
+```
+[ 💰 "Too expensive" ]           [ 🤔 "I'll think about it" ]
+[ 📉 "Found it cheaper" ]        [ 🔒 "I don't trust online" ]
+[ ❓ "Is this original?" ]        [ 🚚 "Delivery too slow" ]
+[ 🔄 "No return policy?" ]       [ 💵 "Can I pay on delivery?" ]
+[ ✍️ Custom objection... ]
+```
+
+**Click any card → Expansion panel or modal:**
+- Objection displayed at top
+- 3 response strategies:
+  1. **Empathetic approach**: acknowledge + redirect
+  2. **Value-based approach**: emphasize benefits
+  3. **Social proof approach**: use testimonials/numbers
+- Each strategy: full script text + `[ 📋 Copy ]`
+- Tips: "💡 Why this works in Tunisia..."
+
+**Custom Objection Input:**
+- Textarea for unique objection
+- Context fields: product type, customer relationship
+- `[ 🛡️ Generate Response ]` button
+- Same 3-strategy output format
+
+---
+
+#### ✅ Page 7.3 — FAQ Builder (`/support/faq`)
+
+```
+Route:  /support/faq
+```
+
+**Two modes (tab toggle):**
+
+**Mode 1: Auto-Generate**
+- Business description (textarea, pre-filled from profile)
+- Industry (dropdown)
+- Common topics (checkboxes): Pricing, Shipping, Returns, Quality, Payment Methods, Working Hours, Custom Orders
+- `[ 🤖 Auto-Generate FAQ ]` button
+- Output: 10-15 Q&A pairs
+
+**Mode 2: Manual Builder**
+- Dynamic form: Add Q&A pairs manually
+- Each pair: Question input + Answer textarea + `[ 🗑️ Remove ]`
+- `[ + Add Question ]` button
+- `[ 🤖 Improve Answers ]` button → AI polishes all answers
+
+**FAQ Display:**
+- Accordion-style Q&A list
+- Each item: editable inline (click to edit)
+- Drag handles to reorder
+- `[ 🗑️ ]` delete button per item
+
+**Export Options:**
+- `[ 📋 Copy All (Plain Text) ]`
+- `[ 📋 Copy as HTML ]`
+- `[ 📥 Download PDF ]`
+- `[ 📧 Send to Email ]`
+
+---
+
+#### ✅ Page 7.4 — Conversation Simulator (`/support/simulator`)
+
+```
+Route:  /support/simulator
+```
+
+**Scenario Selector** (card grid):
+- 💰 Price Negotiation
+- 😤 Angry Customer / Complaint
+- ❓ Product Inquiry
+- 🔄 Return / Refund Request
+- 🐌 Delivery Complaint
+- ⭐ Custom Scenario (text input)
+
+**Configuration:**
+- Customer personality (dropdown): Friendly | Aggressive | Indecisive | Suspicious | Impatient
+- Difficulty (slider): Easy → Hard
+- Your product/service context (text input)
+- `[ 🎭 Start Simulation ]` button
+
+**Chat Interface:**
+- Full chat UI similar to WhatsApp
+- AI (as customer) sends first message
+- User types responses
+- AI responds in character, escalating realistically
+- Conversation continues for 5-10 exchanges
+
+**After Simulation — Feedback Panel:**
+- **Performance Score**: 0-100 with breakdown:
+  - Empathy: X/20
+  - Problem Resolution: X/20
+  - Response Speed: X/20
+  - Professionalism: X/20
+  - Closing Effectiveness: X/20
+- **What you did well** (bullet points with ✅)
+- **Areas to improve** (bullet points with 💡)
+- **Suggested better responses** for key moments
+- `[ 🔄 Try Again ]` `[ 🎭 New Scenario ]` buttons
+
+---
+
+#### ✅ Page 7.5 — Complaint Resolver (`/support/complaints`)
+
+```
+Route:  /support/complaints
+```
+
+**Input Section:**
+- Customer complaint (large textarea — paste the actual complaint message)
+- Complaint category (dropdown): Product Quality | Late Delivery | Wrong Item | Payment Issue | Poor Service | Other
+- Order/reference number (optional text input)
+- Complaint severity (radio): Low | Medium | High | Critical
+- `[ 🔍 Analyze & Resolve ]` button
+
+**Output Section:**
+
+- **Complaint Analysis Card:**
+  - Customer sentiment: 😡 Angry | 😞 Disappointed | 😐 Neutral
+  - Key issues identified (bullet list)
+  - Urgency level assessment
+
+- **Response Templates** (3 cards):
+  1. **Immediate Response** — acknowledge and apologize
+  2. **Resolution Offer** — proposed solution
+  3. **Follow-Up Message** — check satisfaction after resolution
+
+- **Resolution Options** (checklist):
+  - ☐ Full refund
+  - ☐ Partial refund
+  - ☐ Replacement
+  - ☐ Discount on next order
+  - ☐ Free shipping on next order
+  - ☐ Personal apology call
+
+- **Escalation Protocol** (if severity = High/Critical):
+  - Recommended escalation steps
+  - Timeline for resolution
+  - Internal notes template
+
+- Buttons: `[ 📋 Copy Response ]` `[ 📄 Export Case ]`
+
+---
+
+### SECTION 8: DIGITAL STRATEGY
+
+#### ✅ Page 8.0 — Strategy Landing (`/strategy`)
+
+Feature cards linking to all 5 sub-tools
+
+---
+
+#### ✅ Page 8.1 — Go Digital Guide (`/strategy/go-digital`)
+
+```
+Route:  /strategy/go-digital
+```
+
+**Interactive Assessment Quiz:**
+
+- 10 multiple-choice questions (one per screen, progress bar):
+  1. "Do you currently sell online?" (No | Social media only | Website | Both)
+  2. "How do you manage customer communication?" (Phone only | WhatsApp | CRM | Mixed)
+  3. "Do you use any automation?" (No | Basic | Advanced)
+  4. "How do you accept payments?" (Cash only | Cash + Mobile | Online payments | Multiple)
+  5. "Do you have a website?" (No | Basic | Professional | E-commerce)
+  6. "How do you manage inventory?" (Manually | Spreadsheet | Software | No tracking)
+  7. "Do you run paid ads?" (Never | Occasionally | Regularly | Professionally managed)
+  8. "How do you collect customer data?" (Don't | Notebook | Spreadsheet | CRM)
+  9. "Do you have a content strategy?" (No | Occasional posts | Regular schedule | Full strategy)
+  10. "Monthly budget for digital tools?" (0 TND | <50 TND | 50-200 TND | 200+ TND)
+
+- `[ Next → ]` after each question (animated transition)
+
+**Results Dashboard:**
+
+- **Digital Maturity Score**: Large circular gauge (0-100)
+  - 0-25: "🔴 Offline — Time to go digital!"
+  - 26-50: "🟠 Basic — Good start, lots of room to grow"
+  - 51-75: "🟡 Developing — You're on the right track"
+  - 76-100: "🟢 Digital-Ready — Fine-tune and scale"
+
+- **Category Scores** (radar/spider chart):
+  - Online Presence
+  - Customer Communication
+  - Sales & Payments
+  - Marketing
+  - Automation
+  - Data Management
+
+- **Priority Actions** (ranked list, numbered):
+  - Each action: description + estimated cost (TND) + estimated impact + `[ Learn More → ]` link to relevant tool page
+
+- **Recommended Tools** (card list with costs):
+  - Tool name + monthly cost in TND + what it solves
+
+- **30/60/90 Day Roadmap** (timeline visual):
+  - Week-by-week action items
+  - Milestones and checkpoints
+  - Expected outcomes at each stage
+
+- **Estimated ROI**: "Implementing these changes could generate an additional X-Y TND/month"
+
+- Export: `[ 📥 Download Roadmap PDF ]` `[ 📧 Email Report ]`
+
+---
+
+#### ✅ Page 8.2 — Website Auditor (`/strategy/website-audit`)
+
+```
+Route:  /strategy/website-audit
+```
+
+**Input:**
+- Website URL (text input with validation: must start with http/https)
+- Business type (dropdown)
+- Primary goal of website (dropdown: Sell products, Generate leads, Provide information, Portfolio, Other)
+- `[ 🔍 Audit Website ]` button
+
+**Loading State:**
+- Animated progress with audit steps:
+  - "Checking mobile responsiveness..."
+  - "Analyzing page speed..."
+  - "Reviewing SEO elements..."
+  - "Evaluating content quality..."
+  - "Assessing user experience..."
+
+**Audit Report:**
+
+- **Overall Score**: 0-100 gauge with letter grade (A/B/C/D/F)
+
+- **Category Scores** (expandable accordion sections):
+
+| Category | Score | Visual |
+|---|---|---|
+| 📱 Mobile Responsiveness | XX/100 | Progress bar |
+| ⚡ Page Speed | XX/100 | Progress bar |
+| 🔍 SEO Basics | XX/100 | Progress bar |
+| ✍️ Content Quality | XX/100 | Progress bar |
+| 🎯 CTA Effectiveness | XX/100 | Progress bar |
+| 🔒 Trust Signals | XX/100 | Progress bar |
+| 🎨 Design & UX | XX/100 | Progress bar |
+
+- Each expanded section contains:
+  - What was found (specific observations)
+  - ✅ What's good
+  - ❌ Issues found
+  - 💡 Specific fix recommendations (actionable)
+
+- **Priority Fixes** (top 5, ranked by impact):
+  - Each: issue + fix + difficulty (Easy/Medium/Hard) + estimated impact
+
+- Export: `[ 📥 Download Full Report ]`
+
+---
+
+#### ✅ Page 8.3 — Funnel Builder (`/strategy/funnel`)
+
+```
+Route:  /strategy/funnel
+```
+
+**Funnel Type Selector** (card grid):
+- 🧲 Lead Generation Funnel
+- 🛒 E-commerce Sales Funnel
+- 📅 Appointment Booking Funnel
+- 💼 Consultation/Service Funnel
+- 📱 App Download Funnel
+- ✍️ Custom Funnel
+
+**Click any → Funnel Builder Interface:**
+
+**Visual Funnel Diagram** (vertical, top-to-bottom):
+```
+     ┌─────────────┐
+     │  AWARENESS   │  ← Wide top
+     └──────┬──────┘
+            │
+     ┌──────┴──────┐
+     │  INTEREST    │
+     └──────┬──────┘
+            │
+     ┌──────┴──────┐
+     │  DECISION    │
+     └──────┬──────┘
+            │
+     ┌──────┴──────┐
+     │   ACTION     │  ← Narrow bottom
+     └─────────────┘
+```
+
+**Each stage is clickable → Side panel shows:**
+- Stage description
+- Recommended content for this stage
+- Tools needed
+- Automation suggestions
+- Conversion rate benchmarks (Tunisian market)
+- Example assets (ad copy, landing page text, email)
+
+**Funnel Summary Panel:**
+- Estimated conversion rates per stage
+- Required traffic to achieve target sales
+- Total estimated cost (TND)
+- Recommended tools list
+- Complete automation workflow suggestion
+
+- Export: `[ 📥 Download Funnel Plan ]` `[ 🤖 Create Automation → ]` (links to workflow builder)
+
+---
+
+#### ✅ Page 8.4 — Lead Generation Planner (`/strategy/lead-gen`)
+
+```
+Route:  /strategy/lead-gen
+```
+
+**Form:**
+- Business type (dropdown)
+- Target audience (textarea)
+- Monthly budget for lead gen (TND — number input)
+- Current lead sources (checkboxes: Facebook, Instagram, WhatsApp, Website, Referrals, Events, Other)
+- Monthly lead target (number input)
+- `[ 🎯 Generate Lead Gen Plan ]` button
+
+**Output:**
+
+- **Channel Strategy** (table):
+
+| Channel | Budget Allocation | Expected Leads | Cost per Lead | Priority |
+|---|---|---|---|---|
+| Facebook Ads | XX TND | XX | XX TND | 🔴 High |
+| Instagram | XX TND | XX | XX TND | 🟡 Medium |
+| WhatsApp | XX TND | XX | XX TND | 🟢 Low cost |
+| ... | ... | ... | ... | ... |
+
+- **Lead Magnet Suggestions** (card list):
+  - 3-5 lead magnet ideas specific to the business
+  - Each: type + description + estimated conversion rate
+
+- **Follow-Up Sequence**:
+  - Day-by-day follow-up plan (timeline)
+  - Message templates for each touchpoint
+
+- **Automation Recommendations**:
+  - Specific workflows to automate lead capture and nurturing
+  - `[ 🤖 Build This Automation → ]` links
+
+- **KPIs to Track** (checklist with definitions)
+
+---
+
+#### ✅ Page 8.5 — Competitor Analysis (`/strategy/competitors`)
+
+```
+Route:  /strategy/competitors
+```
+
+**Form:**
+- Your business name/description (textarea)
+- Competitor 1 (name + Facebook/Instagram URL)
+- Competitor 2 (name + Facebook/Instagram URL)
+- Competitor 3 (name + Facebook/Instagram URL, optional)
+- What to analyze (checkboxes): Pricing | Content Strategy | Customer Engagement | Product Range | Online Presence | Branding
+- `[ 🔍 Analyze Competitors ]` button
+
+**Output:**
+
+- **Comparison Table**:
+
+| Aspect | Your Business | Competitor 1 | Competitor 2 | Competitor 3 |
+|---|---|---|---|---|
+| Pricing | ... | ... | ... | ... |
+| Strengths | ... | ... | ... | ... |
+| Weaknesses | ... | ... | ... | ... |
+| Content Quality | ... | ... | ... | ... |
+| Engagement | ... | ... | ... | ... |
+
+- **Your Competitive Advantages** (✅ bullet list)
+- **Gaps & Opportunities** (💡 bullet list)
+- **Differentiation Strategy** (numbered recommendations)
+- **Quick Wins** — 3 things to implement this week to stand out
+
+- Export: `[ 📥 Download Analysis ]`
+
+---
+
+### SECTION 9: AI CHAT
+
+#### ✅ Page 9.1 — Full Chat Interface (`/chat`)
+
+```
+Route:  /chat
+Layout: Full-width (no sidebar or collapsible sidebar)
+```
+
+**Three-column layout (desktop) / Single column (mobile):**
+
+**Left Panel — Chat History Sidebar:**
+- `[ + New Chat ]` button at top
+- Search chat history input
+- List of previous chat sessions:
+  - Each: auto-generated title + date + preview text
+  - Click to load conversation
+  - Right-click or `[⋯]` menu: Rename, Delete, Export
+- Collapsible on mobile (slide-out drawer)
+
+**Center Panel — Chat Area:**
+- Chat messages container (scrollable):
+  - User messages: right-aligned, blue bubbles
+  - AI messages: left-aligned, gray/white bubbles with Ayech avatar
+  - AI messages support rich formatting: bold, bullets, tables, code blocks, links
+  - Typing indicator: animated dots when AI is generating
+  - Timestamp on each message (hover to show exact time)
+
+- **Suggested Prompts** (shown only when chat is empty):
+  - Chips/pills above input:
+    ```
+    [ 💰 How to increase sales? ]
+    [ 📝 Write a Facebook post ]
+    [ 🤖 Automate my workflow ]
+    [ 💡 Validate a business idea ]
+    [ 📊 Marketing strategy ]
+    [ 🛡️ Handle customer complaint ]
+    ```
+
+- **Input Area** (bottom, sticky):
+  - Large text input (auto-expanding textarea)
+  - Buttons row:
+    - 📎 Attach file/image
+    - 🎤 Voice input (microphone)
+    - 🌍 Language indicator
+    - ➤ Send button (primary color)
+  - "Press Enter to send, Shift+Enter for new line" hint text
+
+**Right Panel — Context Panel (desktop only, collapsible):**
+- Shows contextual tool suggestions based on conversation:
+  - "Related tools:" with clickable links
+  - Example: If discussing marketing → shows links to Post Generator, Ad Copy Creator
+- Quick actions: buttons that insert pre-formatted prompts
+- Conversation stats: message count, topics discussed
+
+**Additional Features:**
+- `[ 📥 Export Chat ]` button (top toolbar) → download as PDF or text
+- `[ 🗑️ Clear Chat ]` button
+- Chat persists across page navigations (until new chat started)
+
+---
+
+### SECTION 10: SETTINGS
+
+#### ✅ Page 10.0 — Settings Landing (`/settings`)
+
+```
+Route:  /settings
+Layout: Sidebar + main content with settings sub-navigation
+```
+
+Settings sub-navigation (left menu or tabs):
+```
+⚙️ Settings
+  ├── 👤 Profile
+  ├── 🏢 Business Profile
+  ├── 🌍 Language & Region
+  ├── 🔔 Notifications
+  ├── 🔗 Connected Accounts
+  ├── 💳 Subscription & Billing
+  └── 🔒 Privacy & Security
+```
+
+---
+
+#### ✅ Page 10.1 — Profile Settings (`/settings/profile`)
+
+**Form:**
+- Avatar upload (circular image with camera icon overlay to change)
+- Full name (text input)
+- Email (text input, with verified badge or "Verify" link)
+- Phone number (text input, Tunisian format)
+- Password section:
+  - Current password
+  - New password (with strength indicator)
+  - Confirm new password
+  - `[ 🔑 Update Password ]` button
+- `[ 💾 Save Profile ]` primary button
+
+---
+
+#### ✅ Page 10.2 — Business Profile (`/settings/business`)
+
+**Form** (pre-filled from onboarding, fully editable):
+- Business name
+- Business type / industry (dropdown)
+- Location / governorate (dropdown)
+- Business description (textarea)
+- Products/services list (dynamic tag input or textarea)
+- Target audience description (textarea)
+- Website URL (optional)
+- Social media links (optional): Facebook, Instagram, WhatsApp number
+- Business logo upload
+- `[ 💾 Save Business Profile ]` button
+
+**Info banner:** "ℹ️ This information is used to personalize all AI-generated content for your business."
+
+---
+
+#### ✅ Page 10.3 — Language & Region (`/settings/language`)
+
+**Settings:**
+- Interface language (radio with flags):
+  - 🇹🇳 العربية (Tunisian Arabic)
+  - 🇫🇷 Français
+  - 🇬🇧 English
+- AI response language preference (radio):
+  - Same as interface
+  - Auto-detect from my input
+  - Always Arabic / Always French / Always English
+- Text direction (auto-set based on language, manual override): LTR | RTL
+- Currency display: TND (default, non-changeable)
+- Date format: DD/MM/YYYY (default) | MM/DD/YYYY
+- `[ 💾 Save Preferences ]` button
+
+**Note:** Changes take effect immediately with page re-render
+
+---
+
+#### ✅ Page 10.4 — Notifications (`/settings/notifications`)
+
+**Toggle switches (grouped):**
+
+**AI & Insights:**
+- ☐ Daily AI tips and suggestions
+- ☐ Weekly business insights digest
+- ☐ Proactive automation recommendations
+
+**Automations:**
+- ☐ Automation success notifications
+- ☐ Automation failure alerts
+- ☐ Automation performance reports (weekly)
+
+**Content:**
+- ☐ Content calendar reminders
+- ☐ Posting time reminders
+
+**System:**
+- ☐ Product updates and new features
+- ☐ Billing and subscription alerts
+
+**Delivery method** (for each group): Email ☐ | In-App ☐ | Both ☐
+
+`[ 💾 Save Notification Preferences ]` button
+
+---
+
+#### ✅ Page 10.5 — Connected Accounts (`/settings/connected-accounts`)
+
+Same as `/automation/integrations` page but accessible from settings. Can be a shared component or redirect.
+
+Show connection status for all supported integrations with manage/connect actions.
+
+---
+
+#### ✅ Page 10.6 — Subscription & Billing (`/settings/billing`)
+
+**Current Plan Card:**
+```
+┌─────────────────────────────────────┐
+│  Current Plan: [FREE / PRO / BIZ]   │
+│  Status: ✅ Active                   │
+│  Renewal: DD/MM/YYYY                │
+│  [ 🔼 Upgrade Plan ]               │
+└─────────────────────────────────────┘
+```
+
+**Usage Statistics:**
+
+| Resource | Used | Limit | Visual |
+|---|---|---|---|
+| AI Generations | XX | XX / month | Progress bar |
+| Automations | XX | XX | Progress bar |
+| Storage | XX MB | XX MB | Progress bar |
+| Team Members | XX | XX | Progress bar |
+
+**Plan Comparison Table** (same as pricing page):
+
+| Feature | Free | Pro (29 TND/mo) | Business (79 TND/mo) |
+|---|---|---|---|
+| ... | ... | ... | ... |
+
+**Payment History Table:**
+
+| Date | Description | Amount (TND) | Status | Invoice |
+|---|---|---|---|---|
+| DD/MM/YYYY | Pro Plan - Monthly | 29.000 | ✅ Paid | `[ 📥 ]` |
+
+**Payment Method:**
+- Current method display
+- `[ ✏️ Update Payment Method ]` button
+
+---
+
+#### ✅ Page 10.7 — Privacy & Security (`/settings/privacy`)
+
+**Security Section:**
+- Two-Factor Authentication:
+  - Status: Enabled ✅ / Disabled ❌
+  - `[ Enable 2FA ]` / `[ Disable 2FA ]` button
+  - Setup flow: QR code + verification code input
+- Active Sessions:
+  - Table: Device, Location, Last Active, `[ Revoke ]`
+- Login History:
+  - Table: Date, Device, IP, Status (Success/Failed)
+
+**Privacy Section:**
+- `[ 📥 Export My Data ]` button → generates downloadable archive of all user data
+- `[ 🗑️ Delete All Generated Content ]` button (with confirmation modal)
+- `[ ⚠️ Delete My Account ]` button (with multi-step confirmation: type "DELETE" + password)
+
+**Data Usage:**
+- Toggle: Allow AI to use my business profile for personalization ☐
+- Toggle: Allow anonymous usage analytics ☐
+
+---
+
+### SECTION 11: ADDITIONAL PAGES
+
+#### ✅ Page 11.1 — Pricing / Plans Page (`/pricing`)
+
+```
+Route:  /pricing
+Layout: Full-width, no sidebar (public page)
+```
+
+**Hero Section:**
+- Heading: "Choose the right plan for your business"
+- Subheading: "Start free, upgrade when you're ready"
+- Billing toggle: `[ Monthly ]` / `[ Yearly (Save 20%) ]`
+
+**3 Plan Cards** (side by side on desktop):
+
+| | Free | Pro | Business |
+|---|---|---|---|
+| Price | 0 TND | 29 TND/mo | 79 TND/mo |
+| Badge | — | ⭐ Most Popular | 🏢 Best Value |
+| CTA | `[ Get Started ]` | `[ Start Pro ]` | `[ Start Business ]` |
+
+Full feature comparison table below (expandable accordion by category)
+
+**FAQ Section** below pricing cards (accordion):
+- "Can I cancel anytime?"
+- "How do I pay?" (mention Tunisian payment methods)
+- "Is there a free trial?"
+- etc.
+
+---
+
+#### ✅ Page 11.2 — 404 Not Found (`/404` or catch-all)
+
+```
+Route:  * (catch-all)
+Layout: Centered, no sidebar
+```
+
+- Large illustrated empty state
+- "Oops! Page not found"
+- "The page you're looking for doesn't exist or has been moved."
+- `[ 🏠 Go to Dashboard ]` button
+- `[ 💬 Ask Ayech for Help ]` button
+
+---
+
+#### ✅ Page 11.3 — Landing / Home Page (`/`)
+
+```
+Route:  /
+Layout: Full-width, public (no auth required)
+```
+
+**This is only shown to non-authenticated users. Authenticated users redirect to `/dashboard`.**
+
+**Sections:**
+1. **Hero**: Headline + subheadline + `[ 🚀 Get Started Free ]` CTA + screenshot/mockup
+2. **Features Overview**: 6 feature cards (Business, Marketing, Automation, Content, Support, Strategy)
+3. **How It Works**: 3 steps (Sign up → Tell us about your business → Get AI-powered tools)
+4. **Testimonials**: 3 customer quote cards (placeholder data)
+5. **Pricing Preview**: 3 plan cards with `[ See Full Pricing → ]` link
+6. **FAQ**: 5-6 common questions
+7. **Footer**: Links, social media, language switcher, copyright
+
+---
+
+## GLOBAL COMPONENTS TO VERIFY
+
+Ensure these exist and function correctly across ALL pages:
+
+| Component | Requirement |
+|---|---|
+| **Top Navigation Bar** | Logo, search (Cmd+K), language switcher, theme toggle, notification bell, user avatar/dropdown |
+| **Sidebar Navigation** | All sections with sub-menus, collapsible, mobile hamburger |
+| **Mobile Bottom Nav** | 5 tabs: Home, Marketing, Automation, Content, Chat |
+| **Floating Chat Widget** | Bottom-right corner, expandable mini-chat, present on all pages except `/chat` |
+| **Command Palette** | Cmd+K / Ctrl+K, search across tools, quick actions |
+| **Toast Notifications** | Success (green), Error (red), Info (blue), Warning (amber) |
+| **Loading States** | Skeleton loaders, AI thinking animation, progress bars |
+| **Empty States** | Illustrated with CTAs for all list/content pages |
+| **Error States** | Friendly messages, retry buttons, fallback content |
+| **Breadcrumbs** | On all sub-pages (e.g., Business > Idea Validator) |
+| **Back Buttons** | On all sub-pages for mobile navigation |
+
+---
+
+## FINAL CHECKLIST
+
+Before considering the build complete, verify:
+
+```
+[ ] All 45+ pages/routes are created and accessible
+[ ] All sidebar navigation links work correctly
+[ ] All sub-menu items route to the correct page
+[ ] All forms have proper validation and error states
+[ ] All AI generation buttons connect to API endpoints
+[ ] All result panels render correctly with formatted output
+[ ] All copy buttons work (clipboard API)
+[ ] All export buttons generate proper files (PDF, text, JSON)
+[ ] All pages are responsive (test at 375px, 768px, 1280px, 1440px)
+[ ] RTL layout works when Arabic is selected
+[ ] Dark mode works on all pages
+[ ] Loading states appear during API calls
+[ ] Empty states appear when no data exists
+[ ] Toast notifications fire on actions (save, copy, error)
+[ ] Authentication guards protect all /dashboard and tool routes
+[ ] Onboarding flow completes and saves data
+[ ] Chat interface sends/receives messages correctly
+[ ] Settings save and persist across sessions
+[ ] Mobile bottom navigation appears and works on small screens
+[ ] Command palette (Cmd+K) searches across all tools
+[ ] Floating chat widget appears on all pages except /chat
+[ ] All inter-page links work (e.g., "Generate Business Plan →" from Idea Validator)
+[ ] Language switching updates all UI text immediately
+[ ] No console errors on any page
+```
+
+---
+implement  the inventory of missing routes ( pages ) , leaving them as placeholders to later implementations. Before start coding any missing page , ask me first for approval, giving me the title/number of the concerned page and task plan accordingly . Every page must be fully implemented production-ready with complete UI, interactions, and API integration.*
+
+

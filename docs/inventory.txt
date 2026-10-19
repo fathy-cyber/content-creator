@@ -1,0 +1,73 @@
+Ayech AI Application - Missing Pages Implementation
+Initial Tasks
+ Audit the current codebase
+ Implement placeholders for all missing routes
+ Update `App.tsx` router configuration to include all placeholders
+ Add navigation links/submenus for these new placeholder routes
+Section 1: Authentication & Onboarding
+ 1.1 Login (/login)
+ 1.2 Register (/register)
+ 1.3 Onboarding Wizard (/onboarding)
+ 1.4 Forgot Password (/forgot-password)
+ 1.5 Reset Password (/reset-password)
+Section 2: Dashboard
+ 2.1 Main Dashboard (/dashboard) - Already built, needs to move from / to /dashboard
+Section 3: Business Advisory
+ 3.1 Business Advisory Landing (/business) - Already built
+ 3.2 Idea Validator (/business/idea-validator)
+ 3.3 Pricing Strategy (/business/pricing)
+ 3.4 Profit Calculator (/business/calculator)
+ 3.5 Business Plan Generator (/business/plan)
+ 3.6 Market Analysis (/business/market-analysis)
+Section 4: Marketing & Sales
+ 4.0 Marketing Landing (/marketing)
+ 4.1 Post Generator (/marketing/post-generator)
+ 4.2 Ad Copy Creator (/marketing/ad-copy)
+ 4.3 Product Description Writer (/marketing/product-description)
+ 4.4 WhatsApp Templates (/marketing/whatsapp-templates)
+ 4.5 Campaign Planner (/marketing/campaign-planner)
+ 4.6 Sales Scripts (/marketing/sales-scripts)
+ 4.7 Conversion Optimizer (/marketing/conversion)
+Section 5: Automation Hub
+ 5.0 Automation Landing (/automation)
+ 5.1 Workflow Builder (/automation/builder)
+ 5.2 Template Library (/automation/templates)
+ 5.3 Integrations (/automation/integrations)
+ 5.4 Automation Dashboard (/automation/dashboard)
+ 5.5 Learning Center (/automation/learn)
+Section 6: Content Studio
+ 6.0 Content Studio Landing (/content) - Already built
+ 6.1 Content Calendar (/content/calendar)
+ 6.2 Blog Writer (/content/blog)
+ 6.3 Video Script Generator (/content/video-script)
+ 6.4 Email Campaign Builder (/content/email)
+ 6.5 Caption Generator (/content/captions)
+Section 7: Customer Support Tools
+ 7.0 Support Landing (/support)
+ 7.1 Reply Generator (/support/reply-generator)
+ 7.2 Objection Handler (/support/objections)
+ 7.3 FAQ Builder (/support/faq)
+ 7.4 Conversation Simulator (/support/simulator)
+ 7.5 Complaint Resolver (/support/complaints)
+Section 8: Digital Strategy
+ 8.0 Strategy Landing (/strategy)
+ 8.1 Go Digital Guide (/strategy/go-digital)
+ 8.2 Website Auditor (/strategy/website-audit)
+ 8.3 Funnel Builder (/strategy/funnel)
+ 8.4 Lead Generation Planner (/strategy/lead-gen)
+ 8.5 Competitor Analysis (/strategy/competitors)
+Section 9: AI Chat
+ 9.1 Full Chat Interface (/chat) - Already built
+Section 10: Settings
+ 10.0 Settings Landing (/settings)
+ 10.1 Profile Settings (/settings/profile)
+ 10.2 Business Profile (/settings/business)
+ 10.3 Language & Region (/settings/language)
+ 10.4 Notifications (/settings/notifications)
+ 10.5 Connected Accounts (/settings/connected-accounts)
+ 10.6 Subscription & Billing (/settings/billing)
+ 10.7 Privacy & Security (/settings/privacy)
+Section 11: Additional Pages
+ 11.1 Pricing / Plans Page (/pricing)
+ 11.2 404 Not Found (*)
+ 11.3 Landing / Home Page (/)

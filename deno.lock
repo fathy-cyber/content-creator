@@ -1,0 +1,52 @@
+{
+  "version": "5",
+  "remote": {
+    "https://deno.land/std@0.224.0/async/delay.ts": "f90dd685b97c2f142b8069082993e437b1602b8e2561134827eeb7c12b95c499",
+    "https://deno.land/std@0.224.0/http/server.ts": "f9313804bf6467a1704f45f76cb6cd0a3396a3b31c316035e6a4c2035d1ea514"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@google/genai@^1.29.0",
+        "npm:@hello-pangea/dnd@^18.0.1",
+        "npm:@prisma/client@^7.8.0",
+        "npm:@radix-ui/react-select@^2.2.6",
+        "npm:@supabase/supabase-js@^2.106.1",
+        "npm:@tailwindcss/vite@^4.1.14",
+        "npm:@testing-library/jest-dom@^6.9.1",
+        "npm:@testing-library/react@^16.3.2",
+        "npm:@types/express@^4.17.21",
+        "npm:@types/node@^22.14.0",
+        "npm:@types/pg@^8.20.0",
+        "npm:@vitejs/plugin-react@^5.0.4",
+        "npm:@xyflow/react@^12.10.2",
+        "npm:autoprefixer@^10.4.21",
+        "npm:bullmq@^5.76.5",
+        "npm:clsx@^2.1.1",
+        "npm:cron-parser@^5.5.0",
+        "npm:dotenv@^17.2.3",
+        "npm:express@^4.21.2",
+        "npm:ioredis@^5.10.1",
+        "npm:jsdom@^29.1.1",
+        "npm:lucide-react@0.546",
+        "npm:motion@^12.23.24",
+        "npm:pg-boss@^12.18.2",
+        "npm:prisma@^6.19.3",
+        "npm:react-dom@19",
+        "npm:react-router-dom@^7.13.1",
+        "npm:react@19",
+        "npm:sonner@^2.0.7",
+        "npm:supabase@^2.100.1",
+        "npm:tailwind-merge@^3.5.0",
+        "npm:tailwindcss@^4.1.14",
+        "npm:tsx@^4.21.0",
+        "npm:typescript@~5.8.2",
+        "npm:vite-plugin-node-polyfills@0.2",
+        "npm:vite@^6.2.0",
+        "npm:vitest@^4.1.5",
+        "npm:zod@^4.4.3",
+        "npm:zustand@^5.0.12"
+      ]
+    }
+  }
+}

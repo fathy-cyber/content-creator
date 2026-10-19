@@ -1,0 +1,1204 @@
+{
+  "name": "Social Media Publishing Workflow",
+  "nodes": [
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "social-publish",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-01",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [100, 300]
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true }) }}",
+        "options": { "responseCode": 202 }
+      },
+      "id": "node-02",
+      "name": "Respond 202 Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [300, 150]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// --- CSRF / Secret validation ---\nconst secret = $input.first().json.headers['x-erp-secret'];\nif (secret !== $env.ERP_WEBHOOK_SECRET) {\n  throw new Error('Unauthorized: invalid webhook secret');\n}\n\n// --- Extract and validate body ---\nconst body = $input.first().json.body;\nconst { publish_job_id, ai_post_id, platform, social_account_id } = body ?? {};\n\nconst ALLOWED_PLATFORMS = ['linkedin', 'facebook', 'instagram', 'telegram', 'wordpress'];\n\nif (!publish_job_id)      throw new Error('Missing: publish_job_id');\nif (!ai_post_id)          throw new Error('Missing: ai_post_id');\nif (!platform)            throw new Error('Missing: platform');\nif (!social_account_id)   throw new Error('Missing: social_account_id');\nif (!ALLOWED_PLATFORMS.includes(platform)) {\n  throw new Error(`Unsupported platform: ${platform}`);\n}\n\n// --- Build idempotency key ---\n// Must match the key format used in publisherService.ts\nconst idempotency_key = `${ai_post_id}:${social_account_id}`;\n\nreturn [{\n  json: {\n    publish_job_id,\n    ai_post_id,\n    platform,\n    social_account_id,\n    idempotency_key,\n    retry_count: 0\n  }\n}];"
+      },
+      "id": "node-03",
+      "name": "Validate & Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 350]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/publish_jobs",
+        "method": "GET",
+        "qs": {
+          "idempotency_key": "=eq.{{ $json.idempotency_key }}",
+          "status": "eq.published",
+          "select": "id,status,external_post_id"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "node-04",
+      "name": "Idempotency Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [500, 350]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// If Supabase returned a non-empty array, post is already published — stop.\nconst results = $input.first().json;\nconst alreadyPublished = Array.isArray(results) && results.length > 0;\n\nif (alreadyPublished) {\n  // Signal downstream IF node to stop\n  return [{ json: { should_stop: true, reason: 'already_published' } }];\n}\n\n// Pass through all upstream fields\nconst upstream = $('Validate & Parse').first().json;\nreturn [{ json: { ...upstream, should_stop: false } }];"
+      },
+      "id": "node-05",
+      "name": "Idempotency Evaluate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 350]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.should_stop }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-06",
+      "name": "Already Published?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 350]
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ skipped: true, reason: 'already_published' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "node-07",
+      "name": "Stop — Already Published",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1100, 200]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/publish_jobs",
+        "method": "PATCH",
+        "qs": {
+          "id": "=eq.{{ $json.publish_job_id }}"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" },
+            { "name": "Prefer",         "value": "return=representation" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ status: 'in_progress', n8n_execution_id: $execution.id, updated_at: new Date().toISOString() }) }}"
+        },
+        "options": {}
+      },
+      "id": "node-08",
+      "name": "Mark In Progress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1100, 400]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/platform_rate_limits",
+        "method": "GET",
+        "qs": {
+          "social_account_id": "=eq.{{ $('Validate & Parse').first().json.social_account_id }}",
+          "window_end": "=gte.{{ new Date().toISOString() }}",
+          "select": "posts_sent,posts_limit,window_end",
+          "order": "window_end.desc",
+          "limit": "1"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "node-09",
+      "name": "Fetch Rate Limit Window",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1300, 400]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const results = $input.first().json;\nconst upstream = $('Validate & Parse').first().json;\n\nlet isRateLimited = false;\nlet resetAt = null;\n\nif (Array.isArray(results) && results.length > 0) {\n  const window = results[0];\n  if (window.posts_sent >= window.posts_limit) {\n    isRateLimited = true;\n    resetAt = window.window_end;\n  }\n}\n\nreturn [{\n  json: {\n    ...upstream,\n    is_rate_limited: isRateLimited,\n    rate_limit_reset_at: resetAt\n  }\n}];"
+      },
+      "id": "node-10",
+      "name": "Evaluate Rate Limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 400]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_rate_limited }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-11",
+      "name": "Is Rate Limited?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1700, 400]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Calculate wait time until rate limit window resets\nconst resetAt = new Date($json.rate_limit_reset_at);\nconst now = new Date();\nconst waitMs = Math.max(resetAt - now, 60000); // minimum 1 minute\nconst waitMinutes = Math.ceil(waitMs / 60000);\n\nreturn [{ json: { ...$json, wait_minutes: waitMinutes } }];"
+      },
+      "id": "node-12",
+      "name": "Calculate Rate Limit Wait",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1900, 300]
+    },
+
+    {
+      "parameters": {
+        "unit": "minutes",
+        "amount": "={{ $json.wait_minutes }}"
+      },
+      "id": "node-13",
+      "name": "Wait — Rate Limit Window",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2100, 300]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/token-refresh",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ social_account_id: $('Validate & Parse').first().json.social_account_id }) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "node-14",
+      "name": "Fetch & Refresh Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1900, 500]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const tokenResponse = $input.first().json;\nconst upstream = $('Validate & Parse').first().json;\n\nif (!tokenResponse.access_token) {\n  throw new Error('Token refresh failed: no access_token returned');\n}\n\n// Merge token into workflow state\n// Token lives in-memory only — never written to DB from n8n\nreturn [{\n  json: {\n    ...upstream,\n    access_token: tokenResponse.access_token,\n    token_fetch_ok: true\n  }\n}];"
+      },
+      "id": "node-15",
+      "name": "Merge Token Into State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2100, 500]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/ai_posts",
+        "method": "GET",
+        "qs": {
+          "id": "=eq.{{ $('Validate & Parse').first().json.ai_post_id }}",
+          "select": "id,platform,generated_content,hashtags,media_urls,campaign_id",
+          "limit": "1"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-16",
+      "name": "Fetch Post Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2300, 500]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Supabase REST always returns an array — extract first item\nconst posts = $input.first().json;\n\nif (!Array.isArray(posts) || posts.length === 0) {\n  throw new Error('Post not found in database: ' + $('Validate & Parse').first().json.ai_post_id);\n}\n\nconst post = posts[0];\nconst upstream = $('Merge Token Into State').first().json;\n\n// Build full content string with hashtags appended\nconst hashtagString = Array.isArray(post.hashtags) && post.hashtags.length > 0\n  ? '\\n\\n' + post.hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ')\n  : '';\n\nconst full_content = post.generated_content + hashtagString;\n\nreturn [{\n  json: {\n    ...upstream,\n    post_id: post.id,\n    platform: post.platform,\n    generated_content: post.generated_content,\n    full_content,\n    hashtags: post.hashtags,\n    media_urls: post.media_urls,\n    campaign_id: post.campaign_id\n  }\n}];"
+      },
+      "id": "node-17",
+      "name": "Extract & Merge Post Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2500, 500]
+    },
+
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.platform }}",
+        "rules": {
+            "rules": [
+              { "value2": "linkedin",  "output": 0 },
+              { "value2": "facebook",  "output": 1 },
+              { "value2": "instagram", "output": 2 },
+              { "value2": "telegram",  "output": 3 },
+              { "value2": "wordpress", "output": 4 }
+            ]
+
+        },
+        "fallbackOutput": 3
+      },
+      "id": "node-18",
+      "name": "Platform Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [2700, 500]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Fetch LinkedIn author URN from social_accounts\n// The account_id stored must be the LinkedIn organization or person URN\nconst social_account_id = $json.social_account_id;\n\n// Build proper LinkedIn UGC Post body\n// Using organization URN format for Pages API\nconst body = {\n  author: `urn:li:organization:${$env.LINKEDIN_ORG_ID}`,\n  lifecycleState: 'PUBLISHED',\n  specificContent: {\n    'com.linkedin.ugc.ShareContent': {\n      shareCommentary: {\n        text: $json.full_content\n      },\n      shareMediaCategory: 'NONE'\n    }\n  },\n  visibility: {\n    'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'\n  }\n};\n\nreturn [{ json: { ...$json, linkedin_body: JSON.stringify(body) } }];"
+      },
+      "id": "node-19",
+      "name": "Build LinkedIn Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2900, 350]
+    },
+
+    {
+      "parameters": {
+        "url": "https://api.linkedin.com/v2/ugcPosts",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization",  "value": "=Bearer {{ $json.access_token }}" },
+            { "name": "Content-Type",   "value": "application/json" },
+            { "name": "X-Restli-Protocol-Version", "value": "2.0.0" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "rawBody": "={{ $json.linkedin_body }}"
+        },
+        "options": {
+          "response": { "response": { "neverError": true } },
+          "redirect": { "redirect": { "followRedirects": true } }
+        }
+      },
+      "id": "node-20",
+      "name": "LinkedIn — Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3100, 350]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Facebook Graph API v18 — post to page feed\nconst pageId = $env.FACEBOOK_PAGE_ID;\nconst access_token = $json.access_token;\n\nreturn [{\n  json: {\n    ...$json,\n    facebook_url: `https://graph.facebook.com/v18.0/${pageId}/feed`,\n    facebook_body: JSON.stringify({\n      message: $json.full_content,\n      // DO NOT send access_token in body for v18+ — use Authorization header\n    })\n  }\n}];"
+      },
+      "id": "node-21",
+      "name": "Build Facebook Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2900, 500]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $json.facebook_url }}",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.access_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "rawBody": "={{ $json.facebook_body }}"
+        },
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "node-22",
+      "name": "Facebook — Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3100, 500]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Instagram two-step publish\n// Step 1: Create media container\n// Step 2: Publish the container\n// Both calls must be made sequentially — handled by chaining two HTTP nodes\n\nconst igUserId = $env.INSTAGRAM_USER_ID;\n\nreturn [{\n  json: {\n    ...$json,\n    ig_step1_url: `https://graph.facebook.com/v18.0/${igUserId}/media`,\n    ig_step2_url: `https://graph.facebook.com/v18.0/${igUserId}/media_publish`,\n    ig_container_body: JSON.stringify({\n      caption: $json.full_content,\n      // image_url or video_url must come from media_urls[0] if present\n      ...(Array.isArray($json.media_urls) && $json.media_urls.length > 0\n        ? { image_url: $json.media_urls[0] }\n        : {}\n      )\n    })\n  }\n}];"
+      },
+      "id": "node-23",
+      "name": "Build Instagram Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2900, 650]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $json.ig_step1_url }}",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.access_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "rawBody": "={{ $json.ig_container_body }}"
+        },
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "node-24",
+      "name": "Instagram — Create Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3100, 650]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const containerResponse = $input.first().json;\nconst upstream = $('Build Instagram Body').first().json;\n\nif (!containerResponse.id) {\n  throw new Error('Instagram container creation failed: ' + JSON.stringify(containerResponse));\n}\n\nreturn [{\n  json: {\n    ...upstream,\n    ig_container_id: containerResponse.id,\n    ig_publish_body: JSON.stringify({ creation_id: containerResponse.id })\n  }\n}];"
+      },
+      "id": "node-25",
+      "name": "Extract Container ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3300, 650]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $('Build Instagram Body').first().json.ig_step2_url }}",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization", "value": "=Bearer {{ $('Merge Token Into State').first().json.access_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "rawBody": "={{ $json.ig_publish_body }}"
+        },
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "node-26",
+      "name": "Instagram — Publish Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3500, 650]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Normalize response from all 5 platforms into a common shape\n// Determine which platform just ran by checking upstream\nconst upstream = $('Extract & Merge Post Data').first().json;\nconst platform = upstream.platform;\n\nlet response;\nlet external_post_id = null;\nlet publish_ok = false;\nlet http_status = 0;\nlet error_body = null;\n\nif (platform === 'linkedin') {\n  response = $('LinkedIn — Publish').first().json;\n  http_status = $('LinkedIn — Publish').first().json.$response?.statusCode ?? 0;\n  external_post_id = response.id ?? null;\n  publish_ok = !!response.id;\n  error_body = publish_ok ? null : response;\n}\nelse if (platform === 'facebook') {\n  response = $('Facebook — Publish').first().json;\n  http_status = $('Facebook — Publish').first().json.$response?.statusCode ?? 0;\n  external_post_id = response.id ?? null;\n  publish_ok = !!response.id;\n  error_body = publish_ok ? null : response;\n}\nelse if (platform === 'instagram') {\n  response = $('Instagram — Publish Container').first().json;\n  http_status = $('Instagram — Publish Container').first().json.$response?.statusCode ?? 0;\n  external_post_id = response.id ?? null;\n  publish_ok = !!response.id;\n  error_body = publish_ok ? null : response;\n}\nelse if (platform === 'telegram') {\n  response = $('Telegram — Publish').first().json;\n  http_status = $('Telegram — Publish').first().json.$response?.statusCode ?? 0;\n  external_post_id = response.result?.message_id ?? null;\n  publish_ok = !!response.ok;\n  error_body = publish_ok ? null : response;\n}\nelse if (platform === 'wordpress') {\n  response = $('WordPress — Publish').first().json;\n  http_status = $('WordPress — Publish').first().json.$response?.statusCode ?? 0;\n  external_post_id = response.id ?? null;\n  publish_ok = !!response.id;\n  error_body = publish_ok ? null : response;\n}\n\nreturn [{\n  json: {\n    ...upstream,\n    publish_ok,\n    external_post_id,\n    http_status,\n    error_body: error_body ? JSON.stringify(error_body) : null\n  }\n}];"
+      },
+      "id": "node-27",
+      "name": "Normalize Platform Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3700, 500]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.publish_ok }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-28",
+      "name": "Publish Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [3900, 500]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/publish_jobs",
+        "method": "PATCH",
+        "qs": {
+          "id": "=eq.{{ $json.publish_job_id }}"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ status: 'published', external_post_id: $json.external_post_id, published_at: new Date().toISOString(), updated_at: new Date().toISOString() }) }}"
+        },
+        "options": {}
+      },
+      "id": "node-29",
+      "name": "Mark Published",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [4100, 400]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/ai_posts",
+        "method": "PATCH",
+        "qs": {
+          "id": "=eq.{{ $('Validate & Parse').first().json.ai_post_id }}"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ status: 'published', updated_at: new Date().toISOString() }) }}"
+        },
+        "options": {}
+      },
+      "id": "node-30",
+      "name": "Update Post Status Published",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [4300, 400]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/platform_rate_limits",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "resolution=merge-duplicates" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ social_account_id: $('Validate & Parse').first().json.social_account_id, window_start: new Date(new Date().setHours(0,0,0,0)).toISOString(), window_end: new Date(new Date().setHours(23,59,59,999)).toISOString(), posts_sent: 1, posts_limit: 100, api_calls_made: 1, api_calls_limit: 500 }) }}"
+        },
+        "options": {}
+      },
+      "id": "node-31",
+      "name": "Increment Rate Limit Counter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [4500, 400]
+    },
+
+    {
+      "parameters": {
+        "amount": 24,
+        "unit": "hours"
+      },
+      "id": "node-32",
+      "name": "Wait 24h — First Analytics",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [4700, 400]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/analytics-fetch",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ publish_job_id: $('Validate & Parse').first().json.publish_job_id }) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "node-33",
+      "name": "Fetch Analytics — T+24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [4900, 400]
+    },
+
+    {
+      "parameters": {
+        "amount": 48,
+        "unit": "hours"
+      },
+      "id": "node-34",
+      "name": "Wait 48h — Second Analytics",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [5100, 400]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/analytics-fetch",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ publish_job_id: $('Validate & Parse').first().json.publish_job_id }) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "node-35",
+      "name": "Fetch Analytics — T+72h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [5300, 400]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Telegram Bot API: sendMessage\nconst chat_id = $env.TELEGRAM_CHAT_ID; // Or retrieve from social_accounts.account_id\n\nreturn [{\n  json: {\n    ...$json,\n    telegram_url: `https://api.telegram.org/bot${$json.access_token}/sendMessage`,\n    telegram_body: JSON.stringify({\n      chat_id: chat_id,\n      text: $json.full_content,\n      parse_mode: 'HTML'\n    })\n  }\n}];"
+      },
+      "id": "node-48",
+      "name": "Build Telegram Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2900, 800]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.telegram_url }}",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "rawBody": "={{ $json.telegram_body }}"
+        },
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "node-49",
+      "name": "Telegram — Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3100, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "// WordPress REST API: Create Post\n// The site URL is stored in account_id for WP\nconst siteUrl = $json.social_account_id; // Assuming account_id = site URL\n\nreturn [{\n  json: {\n    ...$json,\n    wordpress_url: `${siteUrl}/wp-json/wp/v2/posts`,\n    wordpress_body: JSON.stringify({\n      title: $json.generated_content.substring(0, 70) + '...',\n      content: $json.full_content,\n      status: 'publish'\n    })\n  }\n}];"
+      },
+      "id": "node-50",
+      "name": "Build WordPress Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2900, 950]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.wordpress_url }}",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization", "value": "=Basic {{ $json.access_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "rawBody": "={{ $json.wordpress_body }}"
+        },
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "node-51",
+      "name": "WordPress — Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3100, 950]
+    },
+    {
+
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.error_code }}",
+        "rules": {
+          "rules": [
+            { "value2": "rate_limit", "output": 0 },
+            { "value2": "auth",       "output": 1 },
+            { "value2": "platform",   "output": 2 },
+            { "value2": "network",    "output": 3 },
+            { "value2": "fatal",      "output": 4 }
+          ]
+        },
+        "fallbackOutput": 4
+      },
+      "id": "node-37",
+      "name": "Error Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [4300, 650]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Rate limit: update DB status, wait for window reset\nconst upstream = $json;\n\n// Update publish_job status to 'retrying'\nreturn [{\n  json: {\n    ...upstream,\n    retry_reason: 'rate_limit',\n    wait_minutes: 60 // wait 1 hour then retry via pg_cron re-trigger\n  }\n}];"
+      },
+      "id": "node-38",
+      "name": "Handle — Rate Limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4500, 550]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Auth error: check retry_count, attempt token refresh once\nconst upstream = $json;\nconst retry_count = upstream.retry_count ?? 0;\n\nif (retry_count >= 1) {\n  // Already retried auth once — escalate to fatal\n  return [{ json: { ...upstream, error_code: 'fatal', error_message: 'Auth retry exhausted' }, pairedItem: { item: 0 } }];\n}\n\nreturn [{ json: { ...upstream, retry_count: retry_count + 1, retry_reason: 'auth' } }];"
+      },
+      "id": "node-39",
+      "name": "Handle — Auth (Check Retry)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4500, 650]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.retry_count }}",
+              "operation": "smallerEqual",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "node-40",
+      "name": "Auth — Can Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [4700, 650]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Platform error: exponential backoff\n// Retry up to max_retries (3)\nconst upstream = $json;\nconst retry_count = upstream.retry_count ?? 0;\nconst max_retries = 3;\n\nif (retry_count >= max_retries) {\n  return [{ json: { ...upstream, error_code: 'fatal', error_message: `Max retries (${max_retries}) exhausted` } }];\n}\n\n// Exponential backoff: 2^retry_count minutes\nconst wait_minutes = Math.pow(2, retry_count);\n\nreturn [{\n  json: {\n    ...upstream,\n    retry_count: retry_count + 1,\n    wait_minutes,\n    retry_reason: 'platform'\n  }\n}];"
+      },
+      "id": "node-41",
+      "name": "Handle — Platform (Backoff)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4500, 750]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.retry_count }}",
+              "operation": "smallerEqual",
+              "value2": 3
+            }
+          ]
+        }
+      },
+      "id": "node-42",
+      "name": "Platform — Can Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [4700, 750]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Network error: retry once immediately\nconst upstream = $json;\nconst retry_count = upstream.retry_count ?? 0;\n\nif (retry_count >= 1) {\n  // Classify as platform error for second attempt\n  return [{ json: { ...upstream, error_code: 'platform', retry_count: retry_count + 1, wait_minutes: 2 } }];\n}\n\nreturn [{ json: { ...upstream, retry_count: retry_count + 1, wait_minutes: 0, retry_reason: 'network' } }];"
+      },
+      "id": "node-43",
+      "name": "Handle — Network",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4500, 850]
+    },
+
+    {
+      "parameters": {
+        "unit": "minutes",
+        "amount": "={{ $json.wait_minutes }}"
+      },
+      "id": "node-44",
+      "name": "Retry Backoff Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [4900, 700]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/publish_jobs",
+        "method": "PATCH",
+        "qs": {
+          "id": "=eq.{{ $('Validate & Parse').first().json.publish_job_id }}"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ status: 'retrying', retry_count: $json.retry_count, last_error: $json.error_message, error_code: $json.error_code, next_retry_at: new Date(Date.now() + ($json.wait_minutes ?? 0) * 60000).toISOString(), updated_at: new Date().toISOString() }) }}"
+        },
+        "options": {}
+      },
+      "id": "node-45",
+      "name": "Update Job — Retrying",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [5100, 700]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/publish_jobs",
+        "method": "PATCH",
+        "qs": {
+          "id": "=eq.{{ $('Validate & Parse').first().json.publish_job_id }}"
+        },
+        "headers": {
+          "entries": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ status: 'dead', last_error: $json.error_message, error_code: $json.error_code, updated_at: new Date().toISOString() }) }}"
+        },
+        "options": {}
+      },
+      "id": "node-46",
+      "name": "Mark Dead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [4700, 900]
+    },
+
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/notify-admin",
+        "method": "POST",
+        "headers": {
+          "entries": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ type: 'publish_job_dead', publish_job_id: $('Validate & Parse').first().json.publish_job_id, platform: $('Validate & Parse').first().json.platform, error_code: $json.error_code, error_message: $json.error_message }) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "node-47",
+      "name": "Notify Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [4900, 900]
+    }
+
+  ],
+
+  "connections": {
+
+    "Webhook Trigger": {
+      "main": [
+        [
+          { "node": "Respond 202 Accepted", "type": "main", "index": 0 },
+          { "node": "Validate & Parse",     "type": "main", "index": 0 }
+        ]
+      ]
+    },
+
+    "Validate & Parse": {
+      "main": [
+        [ { "node": "Idempotency Check", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Idempotency Check": {
+      "main": [
+        [ { "node": "Idempotency Evaluate", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Idempotency Evaluate": {
+      "main": [
+        [ { "node": "Already Published?", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Already Published?": {
+      "main": [
+        [ { "node": "Stop — Already Published", "type": "main", "index": 0 } ],
+        [ { "node": "Mark In Progress",         "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Mark In Progress": {
+      "main": [
+        [ { "node": "Fetch Rate Limit Window", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Fetch Rate Limit Window": {
+      "main": [
+        [ { "node": "Evaluate Rate Limit", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Evaluate Rate Limit": {
+      "main": [
+        [ { "node": "Is Rate Limited?", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Is Rate Limited?": {
+      "main": [
+        [ { "node": "Calculate Rate Limit Wait", "type": "main", "index": 0 } ],
+        [ { "node": "Fetch & Refresh Token",     "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Calculate Rate Limit Wait": {
+      "main": [
+        [ { "node": "Wait — Rate Limit Window", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Wait — Rate Limit Window": {
+      "main": [
+        [ { "node": "Fetch & Refresh Token", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Fetch & Refresh Token": {
+      "main": [
+        [ { "node": "Merge Token Into State", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Merge Token Into State": {
+      "main": [
+        [ { "node": "Fetch Post Content", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Fetch Post Content": {
+      "main": [
+        [ { "node": "Extract & Merge Post Data", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Extract & Merge Post Data": {
+      "main": [
+        [ { "node": "Platform Router", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Platform Router": {
+      "main": [
+        [ { "node": "Build LinkedIn Body",   "type": "main", "index": 0 } ],
+        [ { "node": "Build Facebook Body",   "type": "main", "index": 0 } ],
+        [ { "node": "Build Instagram Body",  "type": "main", "index": 0 } ],
+        [ { "node": "Build Telegram Body",   "type": "main", "index": 0 } ],
+        [ { "node": "Build WordPress Body",  "type": "main", "index": 0 } ]
+      ]
+    },
+
+
+    "Build Telegram Body": {
+      "main": [
+        [ { "node": "Telegram — Publish", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Telegram — Publish": {
+      "main": [
+        [ { "node": "Normalize Platform Response", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Build WordPress Body": {
+      "main": [
+        [ { "node": "WordPress — Publish", "type": "main", "index": 0 } ]
+      ]
+    },
+    "WordPress — Publish": {
+      "main": [
+        [ { "node": "Normalize Platform Response", "type": "main", "index": 0 } ]
+      ]
+    },
+
+
+    "Build Facebook Body": {
+      "main": [
+        [ { "node": "Facebook — Publish", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Build Instagram Body": {
+      "main": [
+        [ { "node": "Instagram — Create Container", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Instagram — Create Container": {
+      "main": [
+        [ { "node": "Extract Container ID", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Extract Container ID": {
+      "main": [
+        [ { "node": "Instagram — Publish Container", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "LinkedIn — Publish": {
+      "main": [
+        [ { "node": "Normalize Platform Response", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Facebook — Publish": {
+      "main": [
+        [ { "node": "Normalize Platform Response", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Instagram — Publish Container": {
+      "main": [
+        [ { "node": "Normalize Platform Response", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Normalize Platform Response": {
+      "main": [
+        [ { "node": "Publish Succeeded?", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Publish Succeeded?": {
+      "main": [
+        [ { "node": "Mark Published",    "type": "main", "index": 0 } ],
+        [ { "node": "Error Classifier",  "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Mark Published": {
+      "main": [
+        [ { "node": "Update Post Status Published", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Update Post Status Published": {
+      "main": [
+        [ { "node": "Increment Rate Limit Counter", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Increment Rate Limit Counter": {
+      "main": [
+        [ { "node": "Wait 24h — First Analytics", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Wait 24h — First Analytics": {
+      "main": [
+        [ { "node": "Fetch Analytics — T+24h", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Fetch Analytics — T+24h": {
+      "main": [
+        [ { "node": "Wait 48h — Second Analytics", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Wait 48h — Second Analytics": {
+      "main": [
+        [ { "node": "Fetch Analytics — T+72h", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Error Classifier": {
+      "main": [
+        [ { "node": "Error Router", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Error Router": {
+      "main": [
+        [ { "node": "Handle — Rate Limit",       "type": "main", "index": 0 } ],
+        [ { "node": "Handle — Auth (Check Retry)","type": "main", "index": 0 } ],
+        [ { "node": "Handle — Platform (Backoff)","type": "main", "index": 0 } ],
+        [ { "node": "Handle — Network",          "type": "main", "index": 0 } ],
+        [ { "node": "Mark Dead",                 "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Handle — Rate Limit": {
+      "main": [
+        [ { "node": "Update Job — Retrying", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Handle — Auth (Check Retry)": {
+      "main": [
+        [ { "node": "Auth — Can Retry?", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Auth — Can Retry?": {
+      "main": [
+        [ { "node": "Fetch & Refresh Token", "type": "main", "index": 0 } ],
+        [ { "node": "Mark Dead",             "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Handle — Platform (Backoff)": {
+      "main": [
+        [ { "node": "Platform — Can Retry?", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Platform — Can Retry?": {
+      "main": [
+        [ { "node": "Retry Backoff Wait", "type": "main", "index": 0 } ],
+        [ { "node": "Mark Dead",          "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Handle — Network": {
+      "main": [
+        [ { "node": "Retry Backoff Wait", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Retry Backoff Wait": {
+      "main": [
+        [ { "node": "Update Job — Retrying", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Update Job — Retrying": {
+      "main": [
+        [ { "node": "Fetch & Refresh Token", "type": "main", "index": 0 } ]
+      ]
+    },
+
+    "Mark Dead": {
+      "main": [
+        [ { "node": "Notify Admin", "type": "main", "index": 0 } ]
+      ]
+    }
+
+  },
+
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+
+  "staticData": null,
+  "tags": ["social", "publishing", "erp"],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+
+}

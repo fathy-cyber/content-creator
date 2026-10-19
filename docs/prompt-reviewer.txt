@@ -1,0 +1,477 @@
+
+```
+═══════════════════════════════════════════════════════════════════════════════
+CONTEXT & MISSION
+═══════════════════════════════════════════════════════════════════════════════
+
+You are a Senior Full-Stack Engineer and Domain Architect reviewing an
+already-implemented billing and financial automation system built on top of
+a modular, event-driven agency management platform (Odoo-like, React +
+TypeScript frontend, Supabase/PostgreSQL backend).
+
+Your task is a DEEP REVIEW + TARGETED IMPROVEMENT of the existing
+implementation described below. You must:
+
+  1. Identify gaps, bugs, anti-patterns, or missing pieces
+  2. Propose and implement concrete improvements
+  3. Respect and extend the existing event-driven inter-module architecture
+  4. Use the Phase 3 checklist as your completion criterion
+  5. Output production-ready, enterprise-grade code only
+
+Do NOT rewrite from scratch. Improve what exists. Preserve all working logic.
+
+═══════════════════════════════════════════════════════════════════════════════
+ARCHITECTURE CONSTRAINTS (NON-NEGOTIABLE)
+═══════════════════════════════════════════════════════════════════════════════
+
+  STACK:
+  ├── Frontend : React + TypeScript + TailwindCSS
+  ├── Backend  : Supabase (PostgreSQL + RLS + RPCs)
+  ├── Events   : Custom EventBus (Redis Pub/Sub or in-process)
+  ├── Types    : Zod schemas + branded ID types
+  └── Errors   : Typed DomainError hierarchy (Result<T,E> monad)
+
+  MODULES (Bounded Contexts):
+  ├── src/modules/crm/          ← clients, contacts, deals
+  ├── src/modules/sales/        ← orders, line items, quotes
+  ├── src/modules/project/      ← projects, tasks, timesheets, milestones
+  ├── src/modules/billing/      ← billing sessions, billing items (NEW)
+  ├── src/modules/invoice/      ← invoices, payments, expenses
+  └── src/shared/
+      ├── contracts/            ← Zod schemas + TypeScript types
+      ├── events/               ← EventBus + EVENT_NAMES constants
+      ├── errors/               ← DomainError, NotFoundError, etc.
+      ├── types/                ← branded IDs, Result<T,E>, pagination
+      └── database/             ← BaseRepository, supabase client
+
+  INTER-MODULE COMMUNICATION RULES:
+  ├── Modules NEVER import each other's repositories directly
+  ├── Modules communicate ONLY via EventBus events
+  ├── Each module owns its own DB tables exclusively
+  ├── Shared domain objects live in src/shared/contracts/
+  └── All async operations return Result<T, DomainError>
+
+  EVENT-DRIVEN FLOW (already implemented, must be respected):
+  ┌─────────────────────────────────────────────────────────────┐
+  │  CRM.deal.won                                               │
+  │    └──► sales.order.created (auto)                         │
+  │                                                             │
+  │  sales.order.confirmed                                      │
+  │    ├──► project.created (auto, service orders)             │
+  │    └──► invoice.created [DRAFT] (auto, all orders)         │
+  │                                                             │
+  │  project.completed                                          │
+  │    └──► billing.session.opened (auto-extract items)        │
+  │                                                             │
+  │  billing.session.approved                                   │
+  │    └──► invoice.generated [DRAFT] (from billing items)     │
+  │                                                             │
+  │  invoice.paid                                               │
+  │    └──► crm.client.payment_recorded (sync to CRM)         │
+  │                                                             │
+  │  invoice.overdue                                            │
+  │    └──► crm.client.aging_updated (overdue flag in CRM)    │
+  └─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+ALREADY IMPLEMENTED — BILLING REVIEW SYSTEM
+(Do NOT rewrite. Review and improve only.)
+═══════════════════════════════════════════════════════════════════════════════
+
+  The following features are already coded and working:
+
+  DATABASE LAYER:
+  ✅ billing_sessions table
+     └── fields: id, project_id, sales_order_id, reviewed_by, status,
+                 billing_model, gross_amount, adjustments, net_amount,
+                 currency, review_notes, approved_at, submitted_at,
+                 created_at, updated_at, deleted_at
+
+  ✅ billing_items table
+     └── fields: id, billing_session_id, source_type, task_id,
+                 timesheet_id, milestone_id, expense_id,
+                 description, quantity, unit_price, amount,
+                 original_quantity, original_unit_price, original_amount,
+                 adjustment_reason, is_billable, is_written_off,
+                 writeoff_reason, is_billed, billed_at,
+                 invoice_line_item_id
+
+  ✅ billing_session_events table (full audit trail)
+     └── fields: id, billing_session_id, billing_item_id, event_type,
+                 performed_by, old_value, new_value, notes, created_at
+
+  ✅ DB Function: fn_extract_billable_items(session_id, project_id, model)
+     └── Extracts timesheets (T&M), order line items (fixed),
+         milestones (milestone), retainer + overflow (hybrid),
+         and reimbursable expenses (all models)
+
+  ✅ FK constraints:
+     └── billing_items.task_id       → tasks.id
+     └── billing_items.timesheet_id  → timesheets.id
+     └── billing_items.milestone_id  → milestones.id
+     └── billing_items.expense_id    → expenses.id
+     └── invoice_line_items.task_id, timesheet_id, milestone_id,
+         expense_id, billing_item_id
+
+  ✅ Anti-double-billing flags:
+     └── billing_items.is_billed
+     └── timesheets.is_billed
+     └── tasks.is_billed
+
+  SERVICE LAYER (src/modules/billing/billing.service.ts):
+  ✅ openBillingSession(projectId)
+     └── Validates project is completed, no duplicate sessions,
+         calls fn_extract_billable_items, publishes billing.session.opened
+
+  ✅ adjustItem(itemId, dto, managerId)
+     └── Validates session is open, item not yet billed,
+         preserves originals, logs audit event,
+         recalculates session totals
+
+  ✅ writeOffItem(itemId, dto, managerId)
+     └── Full write-off or partial (by hours),
+         creates negative write-off line for partials,
+         mandatory reason field, logs audit event
+
+  ✅ addManualItem(sessionId, ...)
+     └── Ad-hoc line item (adjustment / fixed)
+
+  ✅ approveSession(sessionId, dto)
+     └── Business rules: net > 0, at least 1 billable item,
+         publishes billing.session.approved event
+
+  ✅ generateInvoiceFromSession(sessionId)
+     └── Builds invoice from billing items,
+         calls invoiceService.createInvoice(),
+         marks items/timesheets/tasks as is_billed,
+         updates project billing_status → 'invoiced'
+
+  ✅ getBillingSummary(projectId)
+     └── Returns computed KPIs: gross, net, adjustments,
+         hours logged/billed/written-off, item counts
+
+  ✅ Event listeners wired:
+     └── PROJECT_COMPLETED → openBillingSession()
+     └── BILLING_SESSION_APPROVED → generateInvoiceFromSession()
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 3 CHECKLIST — YOUR COMPLETION TARGET
+═══════════════════════════════════════════════════════════════════════════════
+
+  Review the already-implemented billing system above and ensure ALL of the
+  following are fully implemented, correctly integrated, and production-ready:
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ TRACK A: Sales → Invoice Lifecycle                                      │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                         │
+  │ A1. Automated Invoice Lifecycle (Draft → Sent → Paid)                  │
+  │     ├── On sales.order.confirmed:                                       │
+  │     │     Product orders  → create invoice, status: 'sent'             │
+  │     │     Service orders  → create invoice, status: 'draft'            │
+  │     │     Hybrid orders   → create invoice, status: 'draft'            │
+  │     ├── Invoice number generation is sequential, collision-safe         │
+  │     │     Format: INV-YYYYMM-XXXX (e.g., INV-202506-0042)             │
+  │     │     Idempotency lock prevents duplicate creation on retry        │
+  │     ├── Transition: Draft → Sent                                        │
+  │     │     Triggered manually by manager (sendInvoice())                │
+  │     │     OR automatically when billing session is approved            │
+  │     └── Transition: Sent → Paid                                         │
+  │           Triggered by recordPayment()                                  │
+  │           Partial payments → status: 'partial'                         │
+  │           Full payment → status: 'paid', publishes invoice.paid        │
+  │                                                                         │
+  │ A2. Payment Reconciliation & Revenue Propagation                       │
+  │     ├── recordPayment(invoiceId, amount, method, reference)            │
+  │     │     Inserts into payments table                                   │
+  │     │     Recalculates amount_paid and amount_due on invoice           │
+  │     │     Updates invoice status (partial / paid)                      │
+  │     ├── On invoice.paid event:                                          │
+  │     │     Propagate to sales_orders.payment_status = 'paid'           │
+  │     │     Update project.payment_status if linked                      │
+  │     └── Revenue aggregation available for analytics:                   │
+  │           monthly_revenue, revenue_by_client, revenue_by_type         │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ TRACK B: Project → Invoice Automation                                   │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                         │
+  │ B1. Approved Timesheets → Invoice (T&M model)                          │
+  │     ├── On project.timesheet.approved event:                            │
+  │     │     If project billing_model = 'time_and_material'               │
+  │     │     AND billing session exists AND status = 'open':              │
+  │     │       Add timesheet as billing_item to existing session          │
+  │     │     Else if no session yet (mid-project T&M):                    │
+  │     │       Accumulate; extracted when project completes               │
+  │     ├── Timesheet billing_item includes:                                │
+  │     │     employee name, date range, hours, rate, subtotal             │
+  │     └── is_billed flag prevents re-extraction on session open         │
+  │                                                                         │
+  │ B2. Milestone-Triggered Invoice Generation                             │
+  │     ├── On project.milestone.reached event:                            │
+  │     │     Check milestone.invoice_trigger = true                       │
+  │     │     Check milestone not already billed                           │
+  │     │     If billing_model = 'milestone' or 'hybrid':                  │
+  │     │       Create a standalone invoice for the milestone amount       │
+  │     │       OR add to existing open billing session                    │
+  │     ├── Milestone invoice:                                              │
+  │     │     number format: MLSTN-YYYYMM-XXXX                            │
+  │     │     status: 'sent' (milestones are pre-agreed amounts)          │
+  │     │     linked: invoice_line_items.milestone_id = milestone.id      │
+  │     └── Milestone marked: milestones.is_billed = true                 │
+  │                                                                         │
+  │ B3. Billable Expense Propagation                                        │
+  │     ├── On expense.approved event:                                      │
+  │     │     If expense.is_billable = true:                               │
+  │     │       If open billing session exists for project:                │
+  │     │         Add expense as billing_item (source_type: 'expense')    │
+  │     │       Else: mark expense as pending_billing                      │
+  │     ├── Expense billing_item includes:                                  │
+  │     │     category, description, receipt_url, amount                  │
+  │     └── Expenses included in fn_extract_billable_items() fallback     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ TRACK C: Invoice → CRM Sync                                            │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                         │
+  │ C1. Payment History Sync to CRM                                        │
+  │     ├── On invoice.paid event:                                          │
+  │     │     Update clients.total_revenue += invoice.total               │
+  │     │     Update clients.last_payment_date = payment.paid_at          │
+  │     │     Update clients.payment_count += 1                           │
+  │     │     Update deals.payment_status = 'paid' (if linked)           │
+  │     └── Expose via CRM client profile:                                 │
+  │           lifetime_value, avg_invoice_value, payment_frequency        │
+  │                                                                         │
+  │ C2. Client Aging Metrics                                               │
+  │     ├── On invoice.overdue event (daily cron):                         │
+  │     │     Update clients.has_overdue_invoices = true                  │
+  │     │     Update clients.oldest_overdue_days = max(days_overdue)      │
+  │     │     Update clients.overdue_amount = sum(amount_due)             │
+  │     ├── On invoice.paid (was overdue):                                 │
+  │     │     Recalculate: if no more overdue → clear flags               │
+  │     └── CRM client list shows:                                         │
+  │           🔴 Overdue indicator badge on client card                   │
+  │           Aging buckets: 0-30, 31-60, 61-90, 90+ days               │
+  │                                                                         │
+  │ C3. Overdue Account Indicators on Client Profiles                     │
+  │     ├── clients table new fields:                                       │
+  │     │     has_overdue_invoices   BOOLEAN DEFAULT false                 │
+  │     │     overdue_amount         NUMERIC(12,3) DEFAULT 0              │
+  │     │     oldest_overdue_days    INTEGER DEFAULT 0                    │
+  │     │     total_revenue          NUMERIC(12,3) DEFAULT 0             │
+  │     │     last_payment_date      DATE                                  │
+  │     │     payment_count          INTEGER DEFAULT 0                    │
+  │     └── CRM service exposes:                                           │
+  │           getClientsWithOverdueInvoices()                              │
+  │           getClientFinancialProfile(clientId)                          │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+REVIEW INSTRUCTIONS — WHAT TO DO
+═══════════════════════════════════════════════════════════════════════════════
+
+  STEP 1 — GAP ANALYSIS
+  ─────────────────────
+  For each Phase 3 item (A1, A2, B1, B2, B3, C1, C2, C3):
+
+    □ Is it already implemented in the billing system? (YES/PARTIAL/NO)
+    □ If PARTIAL: what is missing?
+    □ If NO: what needs to be built?
+    □ Are there bugs or edge cases in what exists?
+    □ Does it correctly use the EventBus (no direct cross-module calls)?
+    □ Does it return Result<T, DomainError> (no raw throws)?
+    □ Is the DB interaction idempotent / safe for retries?
+
+  Output the gap analysis as a table:
+  ┌────┬────────────────────────────────┬─────────┬────────────────────────┐
+  │ ID │ Requirement                    │ Status  │ Gap / Issue            │
+  ├────┼────────────────────────────────┼─────────┼────────────────────────┤
+  │ A1 │ Invoice lifecycle Draft→Paid   │ PARTIAL │ No recordPayment()...  │
+  │ .. │ ...                            │ ...     │ ...                    │
+  └────┴────────────────────────────────┴─────────┴────────────────────────┘
+
+  STEP 2 — IMPLEMENTATION
+  ───────────────────────
+  For every GAP found in Step 1, implement the fix.
+
+  Deliver the following files (only what changed or is new):
+
+  A. DATABASE MIGRATIONS (if new columns/tables needed)
+     File: infrastructure/migrations/006_phase3_financial_automation.sql
+     Rules:
+       - Wrap in BEGIN/COMMIT transaction
+       - Use IF NOT EXISTS / DO $$ guards (idempotent)
+       - Add indexes for every new FK and query pattern
+       - Add DB triggers for updated_at
+
+  B. SHARED CONTRACTS (if new types needed)
+     Files:
+       - shared/contracts/payment.contract.ts   (new)
+       - shared/contracts/billing.contract.ts   (extend existing)
+       - shared/contracts/crm.contract.ts       (extend: add financial fields)
+       - shared/events/event-names.ts           (add new event constants)
+
+  C. MODULE SERVICES (improve existing or create new)
+     Files:
+       - modules/invoice/invoice.service.ts     (add recordPayment, lifecycle)
+       - modules/invoice/invoice.repository.ts  (add payment queries)
+       - modules/billing/billing.service.ts     (fix gaps B1, B2, B3)
+       - modules/crm/crm.service.ts             (add C1, C2, C3)
+       - modules/crm/crm.repository.ts          (add financial profile queries)
+
+  D. EVENT LISTENERS (new cross-module wiring)
+     Each listener must:
+       □ Be registered in the module's service file (not a central file)
+       □ Use try/catch with typed DomainError logging
+       □ Be idempotent (safe to fire twice)
+       □ Never throw — always log and return on error
+       □ Include a processingLock Set for race condition prevention
+
+  E. CRON JOBS (for daily overdue detection)
+     File: infrastructure/jobs/overdueInvoice.job.ts
+     Rules:
+       - Fetch all invoices where due_date < today AND status IN (sent, unpaid)
+       - Update status → 'overdue'
+       - Publish invoice.overdue for each
+       - CRM listener updates client aging fields
+       - Log results: count updated, errors
+
+  STEP 3 — VALIDATION RULES
+  ─────────────────────────
+  For every implemented feature, add validation:
+
+    Payment recording:
+      □ amount > 0
+      □ amount <= invoice.amount_due
+      □ invoice.status NOT IN ('paid', 'cancelled')
+      □ invoice exists and belongs to valid client
+
+    Billing session approval:
+      □ net_amount > 0 (already implemented, verify)
+      □ at least 1 billable non-written-off item (verify)
+      □ session status = 'open' (verify)
+      □ reviewed_by is a valid employee UUID
+
+    Milestone invoice trigger:
+      □ milestone.invoice_trigger = true
+      □ milestone.status = 'reached'
+      □ milestone not already billed (is_billed check)
+      □ invoice_amount > 0
+
+    Expense propagation:
+      □ expense.is_billable = true
+      □ expense approved (approved_by IS NOT NULL)
+      □ expense not already billed
+
+  STEP 4 — EVENT CATALOG
+  ──────────────────────
+  After implementation, produce a complete event catalog:
+
+  ┌──────────────────────────────────┬──────────────┬─────────────────────────┐
+  │ Event Name                       │ Publisher    │ Subscribers             │
+  ├──────────────────────────────────┼──────────────┼─────────────────────────┤
+  │ sales.order.confirmed            │ Sales        │ Project, Invoice        │
+  │ project.completed                │ Project      │ Billing                 │
+  │ project.timesheet.approved       │ Project      │ Billing                 │
+  │ project.milestone.reached        │ Project      │ Billing, Invoice        │
+  │ expense.approved                 │ Project      │ Billing                 │
+  │ billing.session.opened           │ Billing      │ (notify manager)        │
+  │ billing.session.approved         │ Billing      │ Invoice                 │
+  │ invoice.created                  │ Invoice      │ CRM                     │
+  │ invoice.sent                     │ Invoice      │ (notify client)         │
+  │ invoice.paid                     │ Invoice      │ CRM, Sales, Project     │
+  │ invoice.overdue                  │ Invoice/Cron │ CRM, Automation         │
+  │ [add missing events here]        │ ...          │ ...                     │
+  └──────────────────────────────────┴──────────────┴─────────────────────────┘
+
+  STEP 5 — QUALITY GATES
+  ──────────────────────
+  Before marking any item complete, verify:
+
+    □ TypeScript: no `any` types except in DB row mappers (toEntity())
+    □ All public service methods return Result<T, DomainError>
+    □ All EventBus listeners are idempotent
+    □ No direct cross-module DB queries
+    □ All new DB columns have indexes where queried
+    □ All migrations are wrapped in transactions
+    □ Zod schemas exist for all new domain objects
+    □ Branded ID types used for all cross-module ID references
+    □ All financial amounts stored as NUMERIC(12,3) (not FLOAT)
+    □ Soft delete (deleted_at) on all new tables
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════════════════════
+
+  Deliver your response in this exact structure:
+
+  ## 1. GAP ANALYSIS TABLE
+  (table as specified in Step 1)
+
+  ## 2. DATABASE MIGRATION
+  ```sql
+  -- infrastructure/migrations/006_phase3_financial_automation.sql
+  [full migration file]
+  ```
+
+  ## 3. SHARED CONTRACTS
+  ```typescript
+  // shared/contracts/payment.contract.ts
+  [code]
+  ```
+  ```typescript
+  // shared/events/event-names.ts  (additions only)
+  [code]
+  ```
+
+  ## 4. INVOICE SERVICE — Payment & Lifecycle
+  ```typescript
+  // modules/invoice/invoice.service.ts  (additions + fixes only)
+  [code]
+  ```
+
+  ## 5. BILLING SERVICE — Gaps B1, B2, B3
+  ```typescript
+  // modules/billing/billing.service.ts  (additions + fixes only)
+  [code]
+  ```
+
+  ## 6. CRM SERVICE — Financial Sync C1, C2, C3
+  ```typescript
+  // modules/crm/crm.service.ts  (additions only)
+  [code]
+  ```
+
+  ## 7. OVERDUE INVOICE CRON JOB
+  ```typescript
+  // infrastructure/jobs/overdueInvoice.job.ts
+  [code]
+  ```
+
+  ## 8. COMPLETE EVENT CATALOG
+  (table as specified in Step 4)
+
+  ## 9. UPDATED TODOS.md CHECKBOXES
+  (mark every Phase 3 item as ✅ done or 🔧 partial with note)
+
+═══════════════════════════════════════════════════════════════════════════════
+HARD CONSTRAINTS — NEVER VIOLATE THESE
+═══════════════════════════════════════════════════════════════════════════════
+
+  ❌ Never import a module repository from another module
+  ❌ Never use raw `throw` — always return err(new DomainError(...))
+  ❌ Never use `any` type outside of DB row mapper functions
+  ❌ Never store financial amounts as JavaScript floats in DB (use NUMERIC)
+  ❌ Never create an invoice without a sequential, collision-safe number
+  ❌ Never mark a timesheet/task/milestone as billed before invoice is created
+  ❌ Never fire an event inside a DB transaction (publish AFTER commit)
+  ❌ Never process the same event twice (use idempotency locks or DB flags)
+  ❌ Never skip the billing review phase for completed service projects
+  ❌ Never expose raw Supabase errors to the service layer (always map them)
+```

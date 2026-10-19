@@ -1,0 +1,39 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@ayech/core": [
+        "../../packages/@ayech/core/src"
+      ],
+      "@ayech/core/*": [
+        "../../packages/@ayech/core/src/*"
+      ],
+      "@ayech/ui": [
+        "../../packages/@ayech/ui/src"
+      ],
+      "@ayech/ui/*": [
+        "../../packages/@ayech/ui/src/*"
+      ],
+      "@ayech/shared": [
+        "../../packages/@ayech/shared/src"
+      ],
+      "@ayech/shared/*": [
+        "../../packages/@ayech/shared/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "manifest.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

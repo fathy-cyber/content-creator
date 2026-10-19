@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TriggerType {
+  WEBHOOK
+  SCHEDULE
+  EVENT
+}
+
+enum ActionType {
+  EMAIL
+  AI_GEN
+  API_CALL
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  FAILED
+  COMPLETED
+}
+
+enum AlertChannel {
+  EMAIL
+  WHATSAPP
+  PUSH
+  SLACK
+}
+
+enum AlertStatus {
+  UNSENT
+  SENT
+  READ
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String?
+  alerts    Alert[]
+  workflows Workflow[]
+}
+
+model ScheduledJob {
+  id         String     @id @default(uuid())
+  workflowId String
+  cron       String
+  nextRun    DateTime
+  status     JobStatus  @default(PENDING)
+  payload    Json
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  workflow   Workflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([nextRun])
+  @@index([status])
+  @@index([workflowId])
+}
+
+model Alert {
+  id          String       @id @default(uuid())
+  recipientId String
+  recipient   User         @relation(fields: [recipientId], references: [id])
+  channel     AlertChannel
+  payload     Json
+  status      AlertStatus  @default(UNSENT)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([recipientId])
+  @@index([status])
+}
+
+model Workflow {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  trigger     Trigger?
+  steps       Step[]
+  logs        ExecutionLog[]
+  scheduledJobs ScheduledJob[]
+
+  @@index([ownerId])
+}
+
+model Trigger {
+  id         String      @id @default(uuid())
+  type       TriggerType
+  config     Json        // JSONB for flexible trigger configuration
+  workflowId String      @unique
+  workflow   Workflow    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+}
+
+model Step {
+  id            String     @id @default(uuid())
+  workflowId    String
+  sequenceOrder Int
+  actionType    ActionType
+  config        Json       // JSONB for step-specific overrides
+  nextStepId    String?  @unique
+  actionId      String?    // Optional link to a reusable Action definition
+
+  workflow      Workflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  action        Action?    @relation(fields: [actionId], references: [id])
+  
+  // Self-relation for the sequence of steps
+  nextStep      Step?      @relation("StepSequence", fields: [nextStepId], references: [id])
+  prevStep      Step?      @relation("StepSequence")
+
+  @@unique([workflowId, sequenceOrder])
+  @@index([workflowId])
+}
+
+model Action {
+  id            String      @id @default(uuid())
+  type          ActionType
+  integrationId String?
+  templateId    String?
+  
+  integration   Integration? @relation(fields: [integrationId], references: [id])
+  template      Template?    @relation(fields: [templateId], references: [id])
+  steps         Step[]
+
+  @@index([integrationId])
+  @@index([templateId])
+}
+
+model Integration {
+  id          String            @id @default(uuid())
+  provider    String
+  credentials Json              // Encrypted JSONB
+  status      IntegrationStatus @default(ACTIVE)
+  
+  actions     Action[]
+
+  @@index([provider])
+}
+
+model Template {
+  id          String   @id @default(uuid())
+  name        String
+  content     String   @db.Text
+  variables   Json     // JSONB for template variables
+  moduleOwner String   // Which module owns this template (e.g., 'marketing', 'support')
+
+  actions     Action[]
+
+  @@index([moduleOwner])
+}
+
+model ExecutionLog {
+  id         String          @id @default(uuid())
+  workflowId String
+  status     ExecutionStatus
+  startTime  DateTime        @default(now())
+  endTime    DateTime?
+  errorLog   String?         @db.Text
+  
+  workflow   Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([status])
+}
